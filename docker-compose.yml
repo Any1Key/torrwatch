@@ -1,0 +1,32 @@
+services:
+  web:
+    build: .
+    image: torrwatch:dev
+    command: ["torrwatch-web"]
+    env_file: ${TORRWATCH_ENV_FILE:-.env}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    image: torrwatch:dev
+    command: ["torrwatch-worker"]
+    env_file: ${TORRWATCH_ENV_FILE:-.env}
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      web:
+        condition: service_healthy
