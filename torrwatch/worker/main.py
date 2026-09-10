@@ -13,7 +13,6 @@ from datetime import datetime
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.db.database import Database
-from torrwatch.db.migrations import upgrade_database
 from torrwatch.services.jobs import JobRepository, MonitorRepository, Scheduler, now_utc
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,6 @@ def worker_cycle(database: Database, worker_id: str, now: datetime | None = None
 async def run_worker(settings: Settings) -> None:
     """Run the Phase 0 heartbeat loop and shut down cleanly on SIGTERM."""
     ensure_runtime_files(settings)
-    upgrade_database(settings)
     database = Database(settings.resolved_database_url)
     stop_event = asyncio.Event()
     identity = worker_identity()
