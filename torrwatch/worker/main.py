@@ -5,29 +5,37 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import socket
+import uuid
 from contextlib import suppress
-from datetime import UTC, datetime
-
-from sqlalchemy import select
+from datetime import datetime
 
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
-from torrwatch.db.models import WorkerState
+from torrwatch.services.jobs import JobRepository, MonitorRepository, Scheduler, now_utc
 
 logger = logging.getLogger(__name__)
 
 
-def record_heartbeat(database: Database) -> None:
-    """Persist worker liveness; later phases extend this to job ownership state."""
-    now = datetime.now(UTC)
-    with database.session() as database_session:
-        state = database_session.scalar(select(WorkerState).where(WorkerState.id == 1))
-        if state is None:
-            database_session.add(WorkerState(id=1, heartbeat_at=now))
-        else:
-            state.heartbeat_at = now
+def worker_identity() -> str:
+    return f"{socket.gethostname()}-{uuid.uuid4()}"
+
+
+def worker_cycle(database: Database, worker_id: str, now: datetime | None = None) -> int:
+    """Run one no-network scheduling and fake-handler cycle for Phase 1."""
+    current = now or now_utc()
+    jobs = JobRepository(database)
+    jobs.heartbeat(worker_id, current)
+    jobs.recover_abandoned(current)
+    Scheduler(MonitorRepository(database), jobs).schedule_due(current)
+    job = jobs.claim_next(worker_id, current)
+    if job is None:
+        return 0
+    # Tracker execution deliberately does not exist until later phases.
+    jobs.complete_success(job.id, worker_id, current)
+    return 1
 
 
 async def run_worker(settings: Settings) -> None:
@@ -36,13 +44,14 @@ async def run_worker(settings: Settings) -> None:
     upgrade_database(settings)
     database = Database(settings.resolved_database_url)
     stop_event = asyncio.Event()
+    identity = worker_identity()
     loop = asyncio.get_running_loop()
     for signal_name in (signal.SIGINT, signal.SIGTERM):
         with suppress(NotImplementedError):
             loop.add_signal_handler(signal_name, stop_event.set)
     try:
         while not stop_event.is_set():
-            record_heartbeat(database)
+            worker_cycle(database, identity)
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_heartbeat_seconds)
             except TimeoutError:

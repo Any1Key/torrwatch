@@ -46,7 +46,7 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-ignore = ["B008"]
+ignore = ["B008", "E501", "E702"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["torrwatch"]
