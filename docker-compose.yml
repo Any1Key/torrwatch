@@ -19,6 +19,7 @@ services:
       start_period: 10s
 
   worker:
+    build: .
     image: torrwatch:dev
     command: ["torrwatch-worker"]
     env_file: ${TORRWATCH_ENV_FILE:-.env}

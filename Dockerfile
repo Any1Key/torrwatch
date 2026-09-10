@@ -18,6 +18,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN groupadd --system torrwatch \
     && useradd --system --gid torrwatch --home-dir /app --shell /usr/sbin/nologin torrwatch \
+    && apt-get update \
+    && apt-get install --no-install-recommends --yes gosu \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
     && mkdir /app /data \
     && chown torrwatch:torrwatch /app /data
 
@@ -26,7 +30,9 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --chown=torrwatch:torrwatch alembic alembic
 COPY --chown=torrwatch:torrwatch torrwatch torrwatch
 COPY --chown=torrwatch:torrwatch alembic.ini ./
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+RUN chmod 0755 /usr/local/bin/docker-entrypoint
 
-USER torrwatch
 EXPOSE 8080
+ENTRYPOINT ["docker-entrypoint"]
 CMD ["torrwatch-web"]
