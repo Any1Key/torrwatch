@@ -72,8 +72,9 @@
 теряет и не дублирует работу.
 
 **Статус: выполнено.** Добавлены модели monitor/release/event/job, миграция
-Phase 0 → Phase 1, SQLite conditional claim, active-key idempotency, leases,
-worker identity/heartbeat, recovery и no-op handler без сети.
+Phase 0 → Phase 1, SQLite conditional claim, active-key idempotency,
+возобновляемые leases, worker identity/heartbeat, recovery и no-op handler без
+сети.
 
 ## Фаза 2 — Transport/security
 

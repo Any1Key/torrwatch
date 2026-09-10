@@ -27,7 +27,20 @@ CONFLICT DO NOTHING` с уникальным `active_key=monitor-check:<id>`.
 `FAILED_RETRYABLE → RUNNING`; истёкший `RUNNING` recovery переводит в
 `FAILED_RETRYABLE`. Claim выполняется коротким conditional UPDATE по ID,
 статусу и `next_attempt_at`; владеет job только worker, изменивший строку.
-Хранятся worker ID, claim/lease time, attempts, retry time и last error.
-Retry delays: 1m, 5m, 15m, 1h, затем 3h. Worker имеет hostname-UUID,
-heartbeats, recovery до claim и SIGTERM между короткими циклами. В Фазе 1
-handler no-op: tracker/network кода нет.
+SQLite `BUSY`/`locked` при конкурирующем claim обрабатывается как проигранный
+claim, остальные DB-ошибки не подавляются.
+
+Lease job по умолчанию живёт 180 секунд, а владелец продлевает его каждые 60
+секунд; оба значения задаются bootstrap-параметрами и renewal должен быть
+короче lease. Handler выполняется вне DB-транзакции. Каждое продление —
+отдельный conditional `UPDATE` по `id`, `RUNNING` и `worker_id`. Нулевой
+`rowcount` означает потерю ownership: worker прекращает продление и никогда не
+фиксирует от своего имени success/failure после завершения handler. Heartbeat
+подтверждает liveness worker, но не заменяет lease конкретной job.
+
+Recovery до claim находит только `RUNNING` с истёкшим lease, очищает owner и
+делает работу немедленно retryable. При SIGTERM worker не claim-ит новые jobs;
+уже начатому handler разрешено корректно завершиться с продолжением renewal.
+Если процесс прекращает выполнение, продление прекращается, и job безопасно
+восстанавливается после истечения lease. Retry delays: 1m, 5m, 15m, 1h, затем
+3h. В Фазе 1 handler no-op: tracker/network кода нет.

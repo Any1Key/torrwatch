@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.exc import OperationalError
 
 from torrwatch.db.database import Database
 from torrwatch.db.models import Event, Job, MonitorItem, WorkerHeartbeat
@@ -21,6 +23,14 @@ def now_utc() -> datetime:
 
 def active_check_key(monitor_id: int) -> str:
     return f"monitor-check:{monitor_id}"
+
+
+def is_sqlite_busy(error: OperationalError) -> bool:
+    """Recognize only the expected SQLite lock contention handled by job claims."""
+    if not isinstance(error.orig, sqlite3.OperationalError):
+        return False
+    message = str(error.orig).lower()
+    return "database is locked" in message or "database is busy" in message
 
 
 class MonitorRepository:
@@ -108,34 +118,53 @@ class JobRepository:
             return True
 
     def claim_next(self, worker_id: str, now: datetime, lease_seconds: int = 120) -> Job | None:
-        with self.database.session() as session:
-            candidate = session.scalar(
-                select(Job.id)
-                .where(Job.status.in_(CLAIMABLE_JOB_STATUSES), Job.next_attempt_at <= now)
-                .order_by(Job.next_attempt_at, Job.id)
-                .limit(1)
-            )
-            if candidate is None:
+        try:
+            with self.database.session() as session:
+                candidate = session.scalar(
+                    select(Job.id)
+                    .where(Job.status.in_(CLAIMABLE_JOB_STATUSES), Job.next_attempt_at <= now)
+                    .order_by(Job.next_attempt_at, Job.id)
+                    .limit(1)
+                )
+                if candidate is None:
+                    return None
+                result = session.execute(
+                    update(Job)
+                    .where(
+                        Job.id == candidate,
+                        Job.status.in_(CLAIMABLE_JOB_STATUSES),
+                        Job.next_attempt_at <= now,
+                    )
+                    .values(
+                        status=JobStatus.RUNNING,
+                        worker_id=worker_id,
+                        claimed_at=now,
+                        lease_expires_at=now + timedelta(seconds=lease_seconds),
+                        started_at=func.coalesce(Job.started_at, now),
+                        attempts=Job.attempts + 1,
+                    )
+                )
+                if int(getattr(result, "rowcount", 0) or 0) != 1:
+                    return None
+                return session.get(Job, candidate)
+        except OperationalError as error:
+            if is_sqlite_busy(error):
                 return None
+            raise
+
+    def renew_lease(self, job_id: int, worker_id: str, now: datetime, lease_seconds: int) -> bool:
+        """Atomically extend a lease only while this worker still owns the running job."""
+        with self.database.session() as session:
             result = session.execute(
                 update(Job)
                 .where(
-                    Job.id == candidate,
-                    Job.status.in_(CLAIMABLE_JOB_STATUSES),
-                    Job.next_attempt_at <= now,
+                    Job.id == job_id,
+                    Job.status == JobStatus.RUNNING,
+                    Job.worker_id == worker_id,
                 )
-                .values(
-                    status=JobStatus.RUNNING,
-                    worker_id=worker_id,
-                    claimed_at=now,
-                    lease_expires_at=now + timedelta(seconds=lease_seconds),
-                    started_at=func.coalesce(Job.started_at, now),
-                    attempts=Job.attempts + 1,
-                )
+                .values(lease_expires_at=now + timedelta(seconds=lease_seconds))
             )
-            if int(getattr(result, "rowcount", 0) or 0) != 1:
-                return None
-            return session.get(Job, candidate)
+            return int(getattr(result, "rowcount", 0) or 0) == 1
 
     def complete_success(self, job_id: int, worker_id: str, now: datetime) -> bool:
         with self.database.session() as session:

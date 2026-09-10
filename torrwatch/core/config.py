@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     session_https_only: bool = False
     session_max_age_seconds: int = Field(default=43_200, ge=300)
     worker_heartbeat_seconds: int = Field(default=30, ge=5)
+    worker_job_lease_seconds: int = Field(default=180, ge=30)
+    worker_lease_renewal_seconds: int = Field(default=60, ge=5)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
