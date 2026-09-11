@@ -126,6 +126,17 @@ login flows, torrent download и monitor-check handler здесь намерен
 проверку состояния и загрузку torrent. Добавить только офлайн fixtures и
 end-to-end цепочку URL → plugin → torrent → release без клиента.
 
+**Статус: выполнено.** Built-in `rutracker` принимает только конкретный
+`/forum/viewtopic.php?t=<positive-id>` URL и канонизирует его к HTTPS. Он
+использует только scoped Phase 2 transport, encrypted cookie session и
+manifest allowlist. Worker выполняет check через durable `MONITOR_CHECK` job:
+первый успешный check создаёт baseline, изменение `version_key` либо
+периодическая forced verification (24 часа по умолчанию, `0` отключает) ведут
+к загрузке, strict Phase 4 validation, атомарному private storage и сравнению
+точных infohash. Только новый infohash создаёт `release_versions`; изменение
+HTML с тем же infohash не является обновлением. Fixtures и интеграционные
+тесты полностью offline. Torrent-client delivery намеренно отсутствует.
+
 ## Фаза 6 — Torrent clients
 
 Создать adapter API, qBittorrent и Transmission, delivery queue, retries и

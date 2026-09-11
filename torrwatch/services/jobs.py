@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Select, func, select, update
@@ -15,6 +16,17 @@ from torrwatch.domain.enums import CLAIMABLE_JOB_STATUSES, JobStatus, JobType, M
 
 MIN_CHECK_INTERVAL_SECONDS = 300
 RETRY_DELAYS_SECONDS = (60, 300, 900, 3600, 10800)
+
+
+@dataclass(frozen=True)
+class JobExecutionFailure(Exception):
+    """Sanitized monitor outcome mapped deliberately to durable job state."""
+
+    message: str
+    retryable: bool
+    monitor_status: MonitorStatus = MonitorStatus.ERROR
+    retry_delay_seconds: int | None = None
+    event_code: str = "CHECK_FAILED"
 
 
 def now_utc() -> datetime:
@@ -197,12 +209,25 @@ class JobRepository:
                 )
             return True
 
-    def fail_retryable(self, job_id: int, worker_id: str, error: str, now: datetime) -> bool:
+    def fail_retryable(
+        self,
+        job_id: int,
+        worker_id: str,
+        error: str,
+        now: datetime,
+        *,
+        monitor_status: MonitorStatus = MonitorStatus.ERROR,
+        retry_delay_seconds: int | None = None,
+        event_code: str = "CHECK_RETRY_SCHEDULED",
+    ) -> bool:
         with self.database.session() as session:
             job = session.get(Job, job_id)
             if job is None or job.status != JobStatus.RUNNING or job.worker_id != worker_id:
                 return False
-            delay = RETRY_DELAYS_SECONDS[min(job.attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
+            delay = (
+                retry_delay_seconds
+                or RETRY_DELAYS_SECONDS[min(job.attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
+            )
             job.status = JobStatus.FAILED_RETRYABLE
             job.next_attempt_at = now + timedelta(seconds=delay)
             job.lease_expires_at = None
@@ -212,12 +237,12 @@ class JobRepository:
                 if monitor is not None:
                     monitor.last_check_at = now
                     monitor.consecutive_failures += 1
-                    monitor.current_status = MonitorStatus.ERROR
+                    monitor.current_status = monitor_status
                 session.add(
                     Event(
                         monitor_id=job.monitor_id,
                         level="WARNING",
-                        event_code="CHECK_RETRY_SCHEDULED",
+                        event_code=event_code,
                         message="Monitor check will be retried.",
                         details_json="{}",
                         created_at=now,
@@ -225,7 +250,16 @@ class JobRepository:
                 )
             return True
 
-    def fail_permanent(self, job_id: int, worker_id: str, error: str, now: datetime) -> bool:
+    def fail_permanent(
+        self,
+        job_id: int,
+        worker_id: str,
+        error: str,
+        now: datetime,
+        *,
+        monitor_status: MonitorStatus = MonitorStatus.ERROR,
+        event_code: str = "CHECK_FAILED_PERMANENT",
+    ) -> bool:
         with self.database.session() as session:
             job = session.get(Job, job_id)
             if job is None or job.status != JobStatus.RUNNING or job.worker_id != worker_id:
@@ -242,8 +276,18 @@ class JobRepository:
                 if monitor is not None:
                     monitor.last_check_at = now
                     monitor.next_check_at = None
-                    monitor.current_status = MonitorStatus.ERROR
+                    monitor.current_status = monitor_status
                     monitor.consecutive_failures += 1
+                session.add(
+                    Event(
+                        monitor_id=job.monitor_id,
+                        level="ERROR",
+                        event_code=event_code,
+                        message="Monitor check failed permanently.",
+                        details_json="{}",
+                        created_at=now,
+                    )
+                )
             return True
 
     def recover_abandoned(self, now: datetime) -> int:

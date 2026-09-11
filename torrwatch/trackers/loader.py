@@ -9,16 +9,24 @@ from torrwatch.trackers.registry import PluginRegistry
 from torrwatch.trackers.types import TrackerPlugin
 
 
+def builtin_plugins() -> tuple[TrackerPlugin, ...]:
+    """Return trusted in-tree implementations in deterministic registration order."""
+
+    from torrwatch.trackers.rutracker import RuTrackerPlugin
+
+    return (RuTrackerPlugin(),)
+
+
 def load_plugin_registry(
-    settings: Settings, builtins: Iterable[TrackerPlugin] = ()
+    settings: Settings, builtins: Iterable[TrackerPlugin] | None = None
 ) -> PluginRegistry:
     """Register trusted in-tree plugins, then safely discover external metadata.
 
-    Phase 3 intentionally has no real in-tree tracker implementation: RuTracker
-    and the other production plugins belong to their specified later phases.
+    Built-ins are trusted application code. External directories remain
+    metadata-only and never execute user-provided Python.
     """
     registry = PluginRegistry()
-    for plugin in builtins:
+    for plugin in builtin_plugins() if builtins is None else builtins:
         registry.register(plugin)
     registry.discover_external(settings.resolved_plugins_dir)
     return registry

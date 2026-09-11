@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
+
+from torrwatch.transport.http import TransportResponse
 
 PLUGIN_API_VERSION = 1
 
@@ -29,6 +32,7 @@ class PluginErrorCode(StrEnum):
     TEMPORARY_NETWORK_ERROR = "TEMPORARY_NETWORK_ERROR"
     RATE_LIMITED = "RATE_LIMITED"
     TRACKER_UNAVAILABLE = "TRACKER_UNAVAILABLE"
+    PROXY_ERROR = "PROXY_ERROR"
 
 
 class TrackerPluginError(RuntimeError):
@@ -112,9 +116,27 @@ class PluginSecrets(Protocol):
     def get(self, name: str) -> str | None: ...
 
 
+class PluginHttp(Protocol):
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        content: bytes | str | None = None,
+        data: Mapping[str, str] | None = None,
+        safe_to_retry: bool = False,
+    ) -> TransportResponse: ...
+
+
 class PluginContext(Protocol):
     """Application-owned dependencies; no database or raw HTTP client is exposed."""
 
-    http: Any
-    state: PluginState
-    secrets: PluginSecrets
+    @property
+    def http(self) -> PluginHttp: ...
+
+    @property
+    def state(self) -> PluginState: ...
+
+    @property
+    def secrets(self) -> PluginSecrets: ...

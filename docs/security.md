@@ -41,6 +41,24 @@ automatic plugin downloads and hot reload are not supported. Fixture HTML is
 minimal, local and sanitized; real credentials, cookies, tokens and personal
 data are forbidden.
 
+## Phase 5 RuTracker boundary
+
+RuTracker-specific parser code receives only the already-scoped plugin context.
+It never opens a database session, creates HTTPX clients, selects a proxy or
+reads the encryption key. Its declared `rutracker.org` manifest domain becomes
+the per-request transport allowlist, so normal Phase 2 DNS and redirect SSRF
+validation remains in force for both topic and `.torrent` URLs. A configured
+proxy remains fail-closed; plugin code has no Direct fallback API.
+
+Cookies remain encrypted in `tracker_sessions`, isolated by `rutracker` plus
+logical monitor/account namespace and paired with the saved User-Agent. Phase 5
+uses manual encrypted cookie/session import rather than storing a RuTracker
+password. Parser errors, auth states, events and jobs use short sanitized text;
+they do not retain HTML bodies, cookies, download tokens or credentials.
+
+Only strictly validated metainfo is atomically written to the private torrent
+directory. A malformed response cannot replace the prior valid current release.
+
 ## Phase 4 torrent artifacts
 
 Metainfo является недоверенным бинарным входом. Torrent engine использует

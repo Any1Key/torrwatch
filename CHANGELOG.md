@@ -8,3 +8,6 @@ All notable changes to TorrWatch are documented here.
 - Added the Phase 3 typed tracker-plugin framework, deterministic registry,
   scoped transport/context boundary, namespaced non-secret plugin state and
   metadata-only external manifest discovery.
+- Added Phase 5 RuTracker topic monitoring: offline parser fixtures, shared
+  transport/session/proxy integration, forced torrent verification, strict
+  metainfo validation, atomic artifact storage and idempotent release history.

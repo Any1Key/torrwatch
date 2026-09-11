@@ -1,11 +1,13 @@
 # Плагины tracker
 
-## Граница Phase 3
+## Граница Phase 5
 
-Phase 3 предоставляет framework, а не реализацию реальных tracker. Согласно
-нормативному плану, RuTracker будет добавлен в Phase 5, NNM-Club и Kinozal — в
-Phase 7. До этого в продукте нет plugin, принимающего пользовательские URL.
-Тестовый `FakePlugin` используется только офлайн в test harness.
+Phase 3 предоставляет framework. Phase 5 добавляет trusted built-in
+`rutracker`; NNM-Club и Kinozal по нормативному плану остаются Phase 7.
+`rutracker` принимает только explicit topic URL
+`https://rutracker.org/forum/viewtopic.php?t=<positive-id>` (вариант `www` и
+HTTP нормализуются). Search, index, profile и произвольные forum pages
+отвергаются. Тестовый `FakePlugin` остаётся только offline test harness.
 
 ## Контракт
 
@@ -18,8 +20,10 @@ preliminary `version_key`, optional timestamp/download reference, auth flag и
 санитизированные metadata.
 
 `version_key` является только сигналом для будущей проверки. Он не доказывает
-изменение torrent: download, bencode validation и infohash comparison относятся
-к последующим фазам.
+изменение torrent: `version_key` является лишь preliminary сигналом. Для
+RuTracker Phase 5 download выполняется только при initial baseline, изменённом
+сигнале или forced verification; strict metainfo validation и точное сравнение
+infohash решают, создавать ли новую историю.
 
 Ошибки plugin должны быть `TrackerPluginError` с одним из безопасных кодов:
 `INVALID_TARGET`, `UNSUPPORTED_PAGE`, `AUTH_REQUIRED`, `AUTH_FAILED`,
@@ -45,6 +49,19 @@ Plugin получает `TrackerPluginContext`, но не Database, SQLAlchemy s
 не реализует retry/proxy fallback, не вызывает notification/client/shell.
 Все tracker HTTP-запросы проходят shared transport с TLS, redirect/DNS SSRF
 validation, encryption-backed session jars, redaction, retry и rate limits.
+
+## RuTracker session и fixtures
+
+Phase 5 использует существующий encrypted `tracker_sessions` через logical
+`rutracker:monitor:<id>` namespace (или account namespace, когда оно назначено).
+V1 поддерживает manual cookie/session import; нет отдельной таблицы plaintext
+credentials и нет login storm. Login page классифицируется как `AUTH_REQUIRED`,
+а unexpected markup — как `PLUGIN_PARSE_ERROR`.
+
+Минимальные fixtures в `tests/fixtures/rutracker/` созданы вручную и содержат
+только структуру, нужную parser tests. Они не содержат реальной страницы,
+cookies, account names, tokens или other personal data. Normal CI никогда не
+обращается к RuTracker.
 
 ## Registry и external directories
 

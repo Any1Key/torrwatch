@@ -195,7 +195,7 @@ def test_application_loader_discovers_external_metadata_without_executing_code(
         )
     )
     registry = load_plugin_registry(settings)  # type: ignore[arg-type]
-    assert registry.manifests() == ()
+    assert [manifest.id for manifest in registry.manifests()] == ["rutracker"]
     assert registry.external_plugins[0].manifest is not None
 
 

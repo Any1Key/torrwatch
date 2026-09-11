@@ -94,8 +94,33 @@ anti-bot is only pluggable extension with explicit challenge classification.
 
 Discovery `/data/plugins/*/manifest.json` deterministic и metadata-only:
 invalid manifests не останавливают startup, а user-supplied Python в Phase 3
-не исполняется. Реальные tracker plugins и monitor-check integration остаются
-в Phase 5/7 по phase discipline.
+не исполняется. Реальная RuTracker integration добавлена в Phase 5; остальные
+tracker plugins остаются в Phase 7 по phase discipline.
+
+## Фаза 5: RuTracker monitor flow
+
+Trusted built-in `rutracker` владеет только URL и HTML своего tracker:
+поддерживается конкретный `/forum/viewtopic.php?t=<positive-id>` на
+`rutracker.org` (вариант `www` нормализуется). Forum index, search, profile и
+другие страницы не являются monitor target. Parser возвращает минимальный
+`RemoteReleaseState`: title, topic ID, canonical URL, deterministic preliminary
+`version_key`, optional source timestamp и torrent download reference.
+
+`MonitorCheckService` остаётся tracker-agnostic: registry выбирает plugin,
+создаёт `TrackerPluginContext` с domain allowlist, monitor/account session
+namespace и назначенным proxy, затем вызывает typed plugin contract. Сначала
+делается page check. Torrent скачивается только для initial baseline, изменённого
+`version_key` или forced verification (24 часа по умолчанию; значение `0`
+отключает её). `version_key` — лишь сигнал: после Phase 4 validation
+сравниваются точные v1/v2 infohash. Равный infohash обновляет source metadata
+без новой release row; новый infohash создаёт immutable artifact и историю.
+
+Network download и atomic filesystem write выполняются вне SQLite transaction.
+Короткая transaction выделяет draft release ID только для immutable pathname,
+а другая finalizes history/current monitor state после fsync/rename. Ownership
+проверяется перед каждым persistent commit, поэтому утративший lease worker не
+сохраняет final result. Первый успех устанавливает baseline; никакой torrent
+client или delivery logic в этой фазе нет.
 
 ## Фаза 4: torrent engine
 

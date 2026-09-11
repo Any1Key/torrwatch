@@ -13,9 +13,21 @@ from datetime import datetime
 
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
+from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
 from torrwatch.db.models import Job
-from torrwatch.services.jobs import JobRepository, MonitorRepository, Scheduler, now_utc
+from torrwatch.services.jobs import (
+    JobExecutionFailure,
+    JobRepository,
+    MonitorRepository,
+    Scheduler,
+    now_utc,
+)
+from torrwatch.services.monitor_checks import MonitorCheckService
+from torrwatch.trackers.loader import load_plugin_registry
+from torrwatch.transport.cookies import SessionStore
+from torrwatch.transport.http import HttpTransport
+from torrwatch.transport.proxy import ProxyService
 
 logger = logging.getLogger(__name__)
 JobHandler = Callable[[Job], Awaitable[None]]
@@ -49,6 +61,28 @@ async def execute_claimed_job(
             owns_job = False
     try:
         await handler_task
+    except JobExecutionFailure as error:
+        if owns_job:
+            if error.retryable:
+                jobs.fail_retryable(
+                    job.id,
+                    worker_id,
+                    error.message,
+                    now_utc(),
+                    monitor_status=error.monitor_status,
+                    retry_delay_seconds=error.retry_delay_seconds,
+                    event_code=error.event_code,
+                )
+            else:
+                jobs.fail_permanent(
+                    job.id,
+                    worker_id,
+                    error.message,
+                    now_utc(),
+                    monitor_status=error.monitor_status,
+                    event_code=error.event_code,
+                )
+        return False
     except Exception as error:
         if owns_job:
             jobs.fail_retryable(job.id, worker_id, str(error), now_utc())
@@ -102,6 +136,17 @@ async def run_worker(settings: Settings) -> None:
     database = Database(settings.resolved_database_url)
     stop_event = asyncio.Event()
     identity = worker_identity()
+    secrets = SecretBox(settings.resolved_master_key_file)
+    transport = HttpTransport.from_settings(
+        settings,
+        proxy_service=ProxyService(database, secrets),
+        sessions=SessionStore(database, secrets),
+    )
+    checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
+
+    async def monitor_handler(job: Job) -> None:
+        await checks.handle(job, identity)
+
     loop = asyncio.get_running_loop()
     for signal_name in (signal.SIGINT, signal.SIGTERM):
         with suppress(NotImplementedError):
@@ -111,6 +156,7 @@ async def run_worker(settings: Settings) -> None:
             await worker_cycle(
                 database,
                 identity,
+                handler=monitor_handler,
                 lease_seconds=settings.worker_job_lease_seconds,
                 renewal_seconds=settings.worker_lease_renewal_seconds,
                 stop_event=stop_event,

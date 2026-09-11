@@ -15,8 +15,11 @@ validation, bounded HTTP retry/rate limits and recursive secret redaction.
 Phase 3 adds the typed tracker-plugin framework, registry, scoped context and
 namespaced non-secret plugin state. Phase 4 adds strict local metainfo
 validation with exact v1/v2 hashes and atomic, private torrent artifact storage
-with protected release retention. Real tracker integrations remain later-phase
-work: RuTracker is Phase 5; NNM-Club and Kinozal are Phase 7.
+with protected release retention. Phase 5 adds the built-in RuTracker topic
+plugin and durable URL → check → validated torrent → release-history flow.
+RuTracker uses encrypted core cookie sessions (manual session import is the v1
+method); it has no standalone credential store. NNM-Club and Kinozal remain
+Phase 7, and torrent-client delivery/replacement remains Phase 6.
 
 ## Quick start with Docker Compose
 
