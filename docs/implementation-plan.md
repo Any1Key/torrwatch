@@ -111,6 +111,15 @@ login flows, torrent download и monitor-check handler здесь намерен
 известными hash и тесты повреждённых torrent/ошибок записи. Критерий: валидная
 текущая версия не теряется ни при какой ошибке обновления.
 
+**Статус: выполнено.** Добавлен независимый strict bencode/metainfo engine с
+точными raw-info v1/v2 hash, SHA-256 payload и проверкой v1/v2 структуры.
+`TorrentStore` сохраняет private artifacts атомарно с fsync/revalidation,
+запрещает перезапись release ID и применяет protected retention (default 5).
+Существующая Phase 1 таблица `release_versions` уже содержит историю и поля
+метаданных, поэтому схема и Alembic migration не изменялись. Загрузка с
+трекера, запись release history из job и delivery намеренно остаются Фазами
+5–6.
+
 ## Фаза 5 — Первый реальный tracker
 
 Реализовать RuTracker как отдельный plugin: URL, auth/cookie через core,

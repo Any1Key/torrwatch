@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     http_pool_timeout_seconds: float = Field(default=10.0, gt=0)
     http_max_attempts: int = Field(default=3, ge=1, le=10)
     http_user_agent: str = "TorrWatch/0.1"
+    torrent_retention_count: int = Field(default=5, ge=1, le=100)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -48,6 +49,11 @@ class Settings(BaseSettings):
     @property
     def resolved_plugins_dir(self) -> Path:
         return self.data_dir / "plugins"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_torrents_dir(self) -> Path:
+        return self.data_dir / "torrents"
 
 
 @lru_cache

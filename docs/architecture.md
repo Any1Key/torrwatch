@@ -96,3 +96,23 @@ Discovery `/data/plugins/*/manifest.json` deterministic и metadata-only:
 invalid manifests не останавливают startup, а user-supplied Python в Phase 3
 не исполняется. Реальные tracker plugins и monitor-check integration остаются
 в Phase 5/7 по phase discipline.
+
+## Фаза 4: torrent engine
+
+`torrwatch.torrent` — отдельная от transport, plugins и SQLite библиотека
+метаданных и файлов. Строгий bencode decoder принимает ровно один canonical
+document, сохраняет исходные byte spans узлов и не пересериализует `info`:
+поэтому v1 SHA-1 и v2 SHA-256 infohash вычисляются по точным исходным байтам.
+Проверяются `info`, имя, piece length, v1 pieces/длины single- или multi-file
+разметки и v2 file tree; также записываются SHA-256 всего torrent, размер и
+число файлов. Валидация внешнего metainfo не выполняет URL, HTML или код.
+
+`TorrentStore` сохраняет только уже валидный metainfo в
+`/data/torrents/<monitor-id>/<release-id>.torrent`: временный private file
+записывается и fsync, перечитывается и повторно валидируется, затем публикуется
+через atomic rename с fsync каталога. Release ID immutable: иной payload не
+может заменить существующий валидный artifact. Retention по умолчанию хранит
+пять newest release; caller явно передаёт current и любые delivery-referenced
+ID как protected, поэтому они не удаляются. File I/O не входит в SQLite
+транзакцию; запись release history в `release_versions` и orchestration
+загрузки остаются следующими фазами.

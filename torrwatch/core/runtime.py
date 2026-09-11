@@ -22,6 +22,8 @@ def ensure_runtime_files(settings: Settings) -> None:
     os.chmod(settings.data_dir, 0o700)
     settings.resolved_plugins_dir.mkdir(exist_ok=True)
     os.chmod(settings.resolved_plugins_dir, 0o700)
+    settings.resolved_torrents_dir.mkdir(exist_ok=True)
+    os.chmod(settings.resolved_torrents_dir, 0o700)
     key_file = settings.resolved_master_key_file
     if not key_file.exists():
         _write_private_file(key_file, secrets.token_bytes(32))

@@ -40,3 +40,19 @@ executes user-provided Python. Invalid manifests are recorded as disabled;
 automatic plugin downloads and hot reload are not supported. Fixture HTML is
 minimal, local and sanitized; real credentials, cookies, tokens and personal
 data are forbidden.
+
+## Phase 4 torrent artifacts
+
+Metainfo является недоверенным бинарным входом. Torrent engine использует
+строгий bounded bencode parser, отклоняет trailing/noncanonical values,
+небезопасные path components и несогласованную структуру v1/v2. Infohash
+вычисляется из исходного raw диапазона `info`, а не из повторно сериализованного
+словаря. Torrent payload и извлечённые метаданные не содержат учётных данных и
+не логируются как диагностический дамп.
+
+Файлы release имеют private permissions: `/data/torrents` и monitor namespaces
+`0700`, каждый artifact `0600`. Storage сначала fsync-ит временный файл,
+валидирует сохранённые байты и только затем делает atomic rename; существующий
+release ID нельзя перезаписать другим payload. Retention получает protected
+current/delivery IDs от orchestration и никогда не удаляет их. Ошибка записи,
+валидации или cleanup оставляет прежний валидный artifact на месте.
