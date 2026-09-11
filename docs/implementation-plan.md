@@ -96,6 +96,14 @@ smoke tests. Реальные tracker plugins не добавлялись.
 namespaced state. Добавить fake-плагин и офлайн-набор тестов. Критерий: сломанный
 сторонний плагин не мешает запуску core.
 
+**Статус: выполнено.** Добавлены typed framework и test harness: manifests,
+registry, metadata-only external discovery, scoped context и namespaced
+non-secret state. Пройдены static checks, offline/migration tests и Docker
+build/runtime/restart smoke tests. Согласно `SPEC.md`, реальный RuTracker
+относится к Фазе 5, а NNM-Club и Kinozal — к Фазе 7; tracker-specific parsers,
+login flows, torrent download и monitor-check handler здесь намеренно не
+реализуются.
+
 ## Фаза 4 — Torrent engine
 
 Добавить точный bencode/metainfo parser, v1/v2 hashes, проверку структуры,

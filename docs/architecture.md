@@ -76,3 +76,23 @@ anti-bot is only pluggable extension with explicit challenge classification.
 коротких DB-сессиях до и после сетевого запроса; соединение с tracker никогда
 не удерживается внутри транзакции SQLite. TLS verification всегда включена и не
 является настройкой tracker plugin.
+
+## Фаза 3: plugin framework
+
+`torrwatch.trackers` определяет typed manifest, target, preliminary
+`RemoteReleaseState`, health и taxonomy plugin errors. `PluginRegistry` хранит
+только registered implementations, validates API version/duplicate IDs и
+детерминированно выбирает plugin по `supports(url)`; tracker-specific branches
+в core отсутствуют.
+
+`TrackerPluginContext` не содержит Database или raw HTTP client. Его
+`PluginHttpClient` фиксирует declared manifest allowlist, chosen proxy profile
+и logical session namespace перед передачей запроса Phase 2 `HttpTransport`.
+`PluginStateNamespace` выполняет короткие JSON-only DB операции в
+`plugin_states`, scoped by plugin ID and account/global scope. Network I/O не
+происходит внутри этих DB операций.
+
+Discovery `/data/plugins/*/manifest.json` deterministic и metadata-only:
+invalid manifests не останавливают startup, а user-supplied Python в Phase 3
+не исполняется. Реальные tracker plugins и monitor-check integration остаются
+в Phase 5/7 по phase discipline.

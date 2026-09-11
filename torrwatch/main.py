@@ -16,6 +16,7 @@ from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.db.bootstrap import bootstrap_admin
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
+from torrwatch.trackers.loader import load_plugin_registry
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ensure_runtime_files(active_settings)
             upgrade_database(active_settings)
             bootstrap_admin(database, active_settings)
+            app.state.plugin_registry = load_plugin_registry(active_settings)
             app.state.ready = True
         except Exception:
             logger.exception("Web bootstrap failed; readiness is unavailable")

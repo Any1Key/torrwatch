@@ -7,12 +7,12 @@ from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
 
 
-def test_migration_creates_phase_zero_tables(settings: object) -> None:
+def test_migration_creates_latest_tables(settings: object) -> None:
     ensure_runtime_files(settings)  # type: ignore[arg-type]
     upgrade_database(settings)  # type: ignore[arg-type]
     database = Database(settings.resolved_database_url)  # type: ignore[union-attr]
     try:
-        assert {"users", "system_settings", "worker_state"} <= set(
+        assert {"users", "system_settings", "worker_state", "plugin_states"} <= set(
             inspect(database.engine).get_table_names()
         )
         with database.engine.connect() as connection:

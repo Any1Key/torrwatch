@@ -26,3 +26,17 @@ link-local targets. TLS certificate verification remains mandatory. Proxy
 failure is fail-closed unless the administrator has configured an explicit,
 acyclic fallback. Administrator-configured internal services are deliberately
 governed by a separate policy.
+
+## Phase 3 plugin boundary
+
+Plugins receive a scoped transport view rather than raw HTTPX/`HttpTransport`:
+application services bind its declared domain allowlist, session namespace and
+selected proxy profile. Plugin code cannot silently switch to Direct or read
+cookies/credentials from another account. Persistent `plugin_states` stores
+only JSON non-secret state; encrypted cookies remain in `tracker_sessions`.
+
+External directory discovery reads manifest JSON only in Phase 3 and never
+executes user-provided Python. Invalid manifests are recorded as disabled;
+automatic plugin downloads and hot reload are not supported. Fixture HTML is
+minimal, local and sanitized; real credentials, cookies, tokens and personal
+data are forbidden.

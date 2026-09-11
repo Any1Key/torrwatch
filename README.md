@@ -5,14 +5,16 @@ release URLs and safely propagating genuine torrent changes to configured
 torrent clients. Torrent search, media discovery and VPN management are not
 part of this project.
 
-## Phase 2 status
+## Phase 3 status
 
 The foundation provides a FastAPI web process, a separate worker heartbeat
 process, SQLite migrations, initial administrator login and Docker Compose.
 Phase 2 adds the shared asynchronous tracker transport: encrypted isolated
 cookie sessions, Direct/HTTP/SOCKS5 proxy profiles, SSRF and redirect
 validation, bounded HTTP retry/rate limits and recursive secret redaction.
-Tracker plugins and real tracker integrations remain later-phase work.
+Phase 3 adds the typed tracker-plugin framework, registry, scoped context and
+namespaced non-secret plugin state. Real tracker integrations remain later-phase
+work: RuTracker is Phase 5; NNM-Club and Kinozal are Phase 7.
 
 ## Quick start with Docker Compose
 

@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     def resolved_database_url(self) -> str:
         return self.database_url or f"sqlite:///{self.data_dir / 'torrwatch.db'}"
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_plugins_dir(self) -> Path:
+        return self.data_dir / "plugins"
+
 
 @lru_cache
 def get_settings() -> Settings:

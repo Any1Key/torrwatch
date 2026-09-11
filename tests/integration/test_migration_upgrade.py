@@ -7,12 +7,12 @@ from torrwatch.db.database import Database
 from torrwatch.db.migrations import alembic_config, upgrade_database
 
 
-def test_phase_one_database_upgrades_to_phase_two(settings: object) -> None:
+def test_phase_two_database_upgrades_to_phase_three(settings: object) -> None:
     from alembic import command
 
     ensure_runtime_files(settings)  # type: ignore[arg-type]
     config = alembic_config(settings)  # type: ignore[arg-type]
-    command.upgrade(config, "20260910_0002")
+    command.upgrade(config, "20260910_0003")
     upgrade_database(settings)  # type: ignore[arg-type]
     database = Database(settings.resolved_database_url)  # type: ignore[union-attr]
     try:
@@ -25,6 +25,7 @@ def test_phase_one_database_upgrades_to_phase_two(settings: object) -> None:
             "worker_heartbeats",
             "proxy_profiles",
             "tracker_sessions",
+            "plugin_states",
         } <= tables
     finally:
         database.dispose()

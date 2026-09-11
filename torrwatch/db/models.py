@@ -212,3 +212,18 @@ class TrackerSession(Base):
     last_successful_auth_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class PluginStateRecord(Base):
+    __tablename__ = "plugin_states"
+    __table_args__ = (
+        UniqueConstraint("plugin_id", "scope", "key", name="uq_plugin_states_namespace_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plugin_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope: Mapped[str] = mapped_column(String(255), nullable=False, default="global")
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    value_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
