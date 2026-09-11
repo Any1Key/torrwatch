@@ -141,3 +141,24 @@ document, сохраняет исходные byte spans узлов и не пе
 ID как protected, поэтому они не удаляются. File I/O не входит в SQLite
 транзакцию; запись release history в `release_versions` и orchestration
 загрузки остаются следующими фазами.
+
+## Фаза 6: torrent clients и delivery
+
+`torrent_clients` хранит только administrator-configured endpoint, тип,
+необязательные defaults и зашифрованный password/token. Это отдельная policy
+от tracker SSRF: HTTP(S) LAN endpoint разрешён только как сохранённая
+административная конфигурация, redirects выключены, TLS verification включена.
+`QBittorrentAdapter` и `TransmissionAdapter` реализуют общий typed contract:
+test, inspect authoritative infohash, add validated bytes и remove. Transmission
+сохраняет negotiated session ID; qBittorrent сохраняет login cookie только в
+памяти adapter execution.
+
+`delivery_jobs` — независимая durable очередь со состояниями `PENDING`,
+`RUNNING`, `SUCCESS`, `FAILED_RETRYABLE`, `FAILED_PERMANENT`. Claim и renewal
+являются conditional SQLite updates по worker identity; expired RUNNING
+recover превращается в retryable. Worker берёт snapshot release/client, затем
+вне transaction выполняет `inspect new → add if absent → inspect new → inspect
+old → remove old`. Remove допустим только после verify new и всегда передаёт
+false для удаления данных. Повторная попытка при crash/response-loss вновь
+инспектирует client: уже добавленный new или уже удалённый old являются
+идемпотентными состояниями. Финальный status пишется только текущим owner.

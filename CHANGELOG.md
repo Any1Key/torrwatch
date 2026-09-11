@@ -11,3 +11,6 @@ All notable changes to TorrWatch are documented here.
 - Added Phase 5 RuTracker topic monitoring: offline parser fixtures, shared
   transport/session/proxy integration, forced torrent verification, strict
   metainfo validation, atomic artifact storage and idempotent release history.
+- Added Phase 6 encrypted qBittorrent/Transmission client adapters and durable
+  delivery jobs with lease recovery, idempotent retry and add → verify →
+  remove replacement that never deletes downloaded data.

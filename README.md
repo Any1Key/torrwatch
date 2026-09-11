@@ -5,7 +5,7 @@ release URLs and safely propagating genuine torrent changes to configured
 torrent clients. Torrent search, media discovery and VPN management are not
 part of this project.
 
-## Phase 4 status
+## Phase 6 status
 
 The foundation provides a FastAPI web process, a separate worker heartbeat
 process, SQLite migrations, initial administrator login and Docker Compose.
@@ -18,8 +18,12 @@ validation with exact v1/v2 hashes and atomic, private torrent artifact storage
 with protected release retention. Phase 5 adds the built-in RuTracker topic
 plugin and durable URL → check → validated torrent → release-history flow.
 RuTracker uses encrypted core cookie sessions (manual session import is the v1
-method); it has no standalone credential store. NNM-Club and Kinozal remain
-Phase 7, and torrent-client delivery/replacement remains Phase 6.
+method); it has no standalone credential store. Phase 6 adds encrypted,
+administrator-configured qBittorrent and Transmission clients plus a durable
+delivery queue. A real later infohash change queues delivery; an initial
+baseline does not. Delivery always adds and verifies the new torrent before
+removing the old one, and never requests data deletion. NNM-Club and Kinozal
+remain Phase 7.
 
 ## Quick start with Docker Compose
 

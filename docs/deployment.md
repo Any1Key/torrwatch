@@ -20,3 +20,17 @@ Compose использует `./data:/data`. В этом каталоге нах
 
 Контейнер запускает приложение непривилегированным пользователем, не требует
 Docker socket, host network, `NET_ADMIN` или `privileged` mode.
+
+## Torrent clients (Phase 6)
+
+qBittorrent и Transmission — administrator-configured internal endpoints.
+Допускаются HTTP(S) LAN addresses, но endpoint не передаётся из tracker URL и
+не может быть overridden на отдельном delivery request. Пароли/токены хранятся
+только encrypted в SQLite и требуют сохранённый `/data/master.key` для работы.
+HTTPS clients проверяют certificate; не отключайте verification для локального
+сертификата — установите доверенную CA в runtime image/configuration.
+
+Delivery выполняется worker-ом из durable queue. При замене он добавляет и
+проверяет новый validated torrent до удаления старого, передавая
+`deleteFiles=false` (qBittorrent) или `delete-local-data=false` (Transmission).
+Поэтому автоматический retry не удаляет download data.

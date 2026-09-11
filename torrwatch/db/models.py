@@ -18,12 +18,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from torrwatch.domain.enums import (
+    DeliveryStatus,
     InitialSyncMode,
     JobStatus,
     JobType,
     MonitorStatus,
     ProxyFallbackMode,
     ProxyType,
+    TorrentClientType,
 )
 
 
@@ -227,3 +229,47 @@ class PluginStateRecord(Base):
     value_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class TorrentClient(Base):
+    __tablename__ = "torrent_clients"
+    __table_args__ = (UniqueConstraint("name", name="uq_torrent_clients_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    type: Mapped[TorrentClientType] = mapped_column(String(32), nullable=False)
+    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    username: Mapped[str | None] = mapped_column(String(255))
+    encrypted_password: Mapped[str | None] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    default_save_path: Mapped[str | None] = mapped_column(Text)
+    default_category: Mapped[str | None] = mapped_column(String(255))
+    default_tags_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class DeliveryJob(Base):
+    __tablename__ = "delivery_jobs"
+    __table_args__ = (
+        UniqueConstraint("active_key", name="uq_delivery_jobs_active_key"),
+        Index("ix_delivery_jobs_claimable", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    release_id: Mapped[int] = mapped_column(
+        ForeignKey("release_versions.id"), nullable=False, index=True
+    )
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("torrent_clients.id"), nullable=False, index=True
+    )
+    status: Mapped[DeliveryStatus] = mapped_column(String(32), nullable=False)
+    active_key: Mapped[str | None] = mapped_column(String(255))
+    worker_id: Mapped[str | None] = mapped_column(String(255))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    last_error: Mapped[str | None] = mapped_column(Text)

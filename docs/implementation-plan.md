@@ -144,6 +144,20 @@ HTML с тем же infohash не является обновлением. Fixtu
 RPC/API. Критерий: offline client не препятствует хранению release и не вызывает
 повторной загрузки torrent при retry.
 
+**Статус: выполнено.** Добавлены encrypted administrator-configured
+`torrent_clients`, durable `delivery_jobs` и Alembic migration `20260911_0005`.
+qBittorrent и Transmission adapters используют TLS verification, не принимают
+arbitrary request URLs и поддерживают LAN administrative endpoints. Delivery
+claim/recovery/lease повторяет durable worker semantics: external API и file
+I/O выполняются после короткого DB snapshot, финальная запись conditional по
+owner. Замена строго `inspect → add new → verify new → remove old`, с
+`deleteFiles=false`/`delete-local-data=false`; retry после crash или lost
+response сначала инспектирует client и сходится без destructive duplicate.
+Baseline не доставляется по умолчанию; delivery создаётся только для нового
+authoritative infohash. Pending/running/retryable release защищены retention.
+NNM-Club, Kinozal, notifications и UI управления clients остаются следующими
+фазами.
+
 ## Фаза 7 — Остальные trackers
 
 Добавить изолированные NNM-Club и Kinozal plugins с fixtures, детерминированной

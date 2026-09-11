@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from torrwatch.core.config import Settings
 from torrwatch.db.database import Database
-from torrwatch.db.models import Event, Job, MonitorItem, ReleaseVersion
-from torrwatch.domain.enums import JobStatus, MonitorStatus
+from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion
+from torrwatch.domain.enums import DeliveryStatus, InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
 from torrwatch.torrent import TorrentMetadata, TorrentStore, TorrentValidationError
 from torrwatch.trackers.context import PluginHttpClient, ScopedPluginSecrets, TrackerPluginContext
@@ -32,6 +32,8 @@ class _MonitorSnapshot:
     plugin_id: str | None
     proxy_profile_id: int | None
     tracker_account_id: int | None
+    torrent_client_id: int | None
+    initial_sync_mode: InitialSyncMode
     current_release_id: int | None
     current_infohash_v1: str | None
     current_infohash_v2: str | None
@@ -190,6 +192,21 @@ class MonitorCheckService:
         state.set("last_torrent_verification_at", now_utc().isoformat())
         self._apply_retention(job.id, worker_id, snapshot.id, draft.id)
         if created:
+            should_deliver = snapshot.current_release_id is not None or (
+                snapshot.initial_sync_mode == InitialSyncMode.BASELINE_AND_DELIVERY
+            )
+            if should_deliver and snapshot.torrent_client_id is not None:
+                from torrwatch.services.delivery import DeliveryRepository
+
+                if DeliveryRepository(self._database).enqueue(draft.id, snapshot.torrent_client_id):
+                    self._event_if_owned(
+                        job.id,
+                        worker_id,
+                        snapshot.id,
+                        plugin.manifest.id,
+                        "DELIVERY_QUEUED",
+                        "Validated release delivery was queued.",
+                    )
             self._event_if_owned(
                 job.id,
                 worker_id,
@@ -225,6 +242,8 @@ class MonitorCheckService:
                 plugin_id=monitor.plugin_id,
                 proxy_profile_id=monitor.proxy_override_id,
                 tracker_account_id=monitor.tracker_account_id,
+                torrent_client_id=monitor.torrent_client_id,
+                initial_sync_mode=InitialSyncMode(monitor.initial_sync_mode),
                 current_release_id=monitor.current_release_id,
                 current_infohash_v1=monitor.current_infohash_v1,
                 current_infohash_v2=monitor.current_infohash_v2,
@@ -422,7 +441,25 @@ class MonitorCheckService:
                     .order_by(ReleaseVersion.detected_at.desc(), ReleaseVersion.id.desc())
                 )
             )
-        deleted = self._store.prune(monitor_id, release_ids, protected_release_ids={current_id})
+        with self._database.session() as session:
+            protected_delivery_ids = set(
+                session.scalars(
+                    select(DeliveryJob.release_id).where(
+                        DeliveryJob.status.in_(
+                            (
+                                DeliveryStatus.PENDING,
+                                DeliveryStatus.RUNNING,
+                                DeliveryStatus.FAILED_RETRYABLE,
+                            )
+                        )
+                    )
+                )
+            )
+        deleted = self._store.prune(
+            monitor_id,
+            release_ids,
+            protected_release_ids={current_id, *protected_delivery_ids},
+        )
         deleted_ids = [int(path.stem) for path in deleted]
         if not deleted_ids:
             return

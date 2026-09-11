@@ -46,3 +46,19 @@ class ProxyFallbackMode(StrEnum):
     DISABLED = "DISABLED"
     DIRECT = "DIRECT"
     PROFILE = "PROFILE"
+
+
+class TorrentClientType(StrEnum):
+    QBITTORRENT = "QBITTORRENT"
+    TRANSMISSION = "TRANSMISSION"
+
+
+class DeliveryStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED_RETRYABLE = "FAILED_RETRYABLE"
+    FAILED_PERMANENT = "FAILED_PERMANENT"
+
+
+DELIVERY_CLAIMABLE_STATUSES = (DeliveryStatus.PENDING, DeliveryStatus.FAILED_RETRYABLE)

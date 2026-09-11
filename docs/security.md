@@ -74,3 +74,19 @@ Metainfo является недоверенным бинарным входом
 release ID нельзя перезаписать другим payload. Retention получает protected
 current/delivery IDs от orchestration и никогда не удаляет их. Ошибка записи,
 валидации или cleanup оставляет прежний валидный artifact на месте.
+
+## Phase 6 torrent-client boundary
+
+Учетные данные qBittorrent/Transmission шифруются тем же versioned Fernet
+`SecretBox`, что proxy и tracker sessions; plaintext не записывается в SQLite и
+расшифровывается лишь при создании adapter для execution. Ошибка missing/wrong
+master key прекращает доступ безопасно. API и diagnostics возвращают только
+sanitized classifications, без password, Authorization, cookie или torrent
+bytes.
+
+Клиентские endpoints являются явно сохранённой административной конфигурацией:
+поддерживаются только HTTP(S), embedded credentials/query/fragment запрещены,
+redirects не следуются, TLS certificate verification обязательна. LAN/private
+адреса допустимы здесь намеренно и не ослабляют tracker SSRF policy. Автоматическая
+замена вызывает qBittorrent с `deleteFiles=false` и Transmission с
+`delete-local-data=false`; данные пользователя не удаляются даже при retry.

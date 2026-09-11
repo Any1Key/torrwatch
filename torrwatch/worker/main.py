@@ -15,7 +15,8 @@ from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
-from torrwatch.db.models import Job
+from torrwatch.db.models import DeliveryJob, Job
+from torrwatch.services.delivery import DeliveryRepository, DeliveryService
 from torrwatch.services.jobs import (
     JobExecutionFailure,
     JobRepository,
@@ -90,6 +91,71 @@ async def execute_claimed_job(
     return owns_job and jobs.complete_success(job.id, worker_id, now_utc())
 
 
+async def execute_claimed_delivery(
+    deliveries: DeliveryRepository,
+    service: DeliveryService,
+    job: DeliveryJob,
+    worker_id: str,
+    *,
+    lease_seconds: int,
+    renewal_seconds: int,
+) -> bool:
+    """Execute delivery outside DB transactions while renewing its owned lease.
+
+    ``DeliveryService`` performs the final conditional state transition itself;
+    consequently an ownership loss can never be committed by the old worker.
+    """
+    delivery_task: asyncio.Future[bool] = asyncio.ensure_future(service.deliver(job, worker_id))
+    owns_job = True
+    while not delivery_task.done():
+        await asyncio.wait({delivery_task}, timeout=renewal_seconds)
+        if delivery_task.done():
+            break
+        if not deliveries.renew_lease(job.id, worker_id, lease_seconds):
+            owns_job = False
+    try:
+        completed = await delivery_task
+    except Exception as error:
+        if owns_job:
+            deliveries.fail(job.id, worker_id, str(error), retryable=True)
+        return False
+    return owns_job and completed
+
+
+async def delivery_cycle(
+    database: Database,
+    secrets: SecretBox,
+    worker_id: str,
+    *,
+    lease_seconds: int = 180,
+    renewal_seconds: int = 60,
+    stop_event: asyncio.Event | None = None,
+) -> int:
+    """Claim at most one durable delivery, unless shutdown has begun."""
+    if renewal_seconds >= lease_seconds:
+        raise ValueError("Lease renewal interval must be shorter than the lease lifetime.")
+    deliveries = DeliveryRepository(database)
+    deliveries.recover_abandoned()
+    if stop_event is not None and stop_event.is_set():
+        return 0
+    job = deliveries.claim_next(worker_id, lease_seconds)
+    if job is None:
+        return 0
+    if stop_event is not None and stop_event.is_set():
+        deliveries.fail(job.id, worker_id, "Worker shutdown before execution.", retryable=True)
+        return 0
+    return int(
+        await execute_claimed_delivery(
+            deliveries,
+            DeliveryService(database, secrets),
+            job,
+            worker_id,
+            lease_seconds=lease_seconds,
+            renewal_seconds=renewal_seconds,
+        )
+    )
+
+
 async def worker_cycle(
     database: Database,
     worker_id: str,
@@ -161,6 +227,15 @@ async def run_worker(settings: Settings) -> None:
                 renewal_seconds=settings.worker_lease_renewal_seconds,
                 stop_event=stop_event,
             )
+            if not stop_event.is_set():
+                await delivery_cycle(
+                    database,
+                    secrets,
+                    identity,
+                    lease_seconds=settings.worker_job_lease_seconds,
+                    renewal_seconds=settings.worker_lease_renewal_seconds,
+                    stop_event=stop_event,
+                )
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_heartbeat_seconds)
             except TimeoutError:
