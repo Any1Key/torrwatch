@@ -83,6 +83,12 @@ Phase 0 → Phase 1, SQLite conditional claim, active-key idempotency,
 шифрование секретов и redaction. Покрыть fake HTTP-сервером, тестами SSRF,
 redirect, прокси, шифрования и отсутствия секретов в диагностике.
 
+**Статус: выполнено.** Добавлены application-owned async transport,
+persistent proxy profiles и encrypted isolated sessions, SSRF/redirect policy,
+bounded HTTP retries, rate limiting и recursive secret redaction. Пройдены
+static checks, offline security/migration tests и Docker build/runtime/restart
+smoke tests. Реальные tracker plugins не добавлялись.
+
 ## Фаза 3 — Plugin framework
 
 Определить типизированный контракт плагинов, manifests, загрузчик built-in и

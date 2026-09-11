@@ -1,11 +1,20 @@
-.git
-.venv
-__pycache__
-.pytest_cache
-.mypy_cache
-.ruff_cache
-.coverage
-htmlcov
-data
+# Source-control and local configuration must never enter the image context.
+.git/
 .env
+.env.*
 
+# Persistent runtime state is mounted at /data and is never image input.
+data/
+
+# Python bytecode and local tool output.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments and temporary verification environments.
+.venv/
+.tmp-*/

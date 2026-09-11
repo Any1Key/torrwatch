@@ -11,6 +11,10 @@ Compose использует `./data:/data`. В этом каталоге нах
 с согласованной SQLite backup-процедурой из будущей CLI. Потеря master key
 сделает будущие зашифрованные секреты невосстановимыми.
 
+`data/`, `.env`, Git metadata, локальные virtual environments и tool caches
+исключены из Docker build context. Runtime state передаётся контейнерам только
+через bind mount `./data:/data`, а не встраивается в образ.
+
 При первом запуске entrypoint может назначить владельца только для смонтированного
 `/data`, после чего web и worker выполняются непривилегированным пользователем.
 

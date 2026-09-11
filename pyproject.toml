@@ -13,6 +13,7 @@ authors = [{ name = "TorrWatch contributors" }]
 dependencies = [
   "alembic>=1.14,<2",
   "argon2-cffi>=23.1,<24",
+  "cryptography>=43,<46",
   "fastapi>=0.115,<1",
   "itsdangerous>=2.2,<3",
   "jinja2>=3.1,<4",
@@ -20,11 +21,11 @@ dependencies = [
   "python-multipart>=0.0.12,<1",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.32,<1",
+  "httpx[socks]>=0.28,<1",
 ]
 
 [dependency-groups]
 dev = [
-  "httpx>=0.28,<1",
   "mypy>=1.13,<2",
   "pre-commit>=4,<5",
   "pytest>=8.3,<9",
@@ -59,6 +60,10 @@ plugins = []
 
 [[tool.mypy.overrides]]
 module = ["alembic.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cryptography.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

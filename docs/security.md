@@ -13,3 +13,16 @@ HttpOnly, SameSite=Lax cookie и имеют ограниченный срок ж
 Шифрование прикладных секретов, redaction, SSRF-защита и transport policy
 относятся к Фазе 2.
 
+## Phase 2 transport policy
+
+`SecretBox` uses maintained `cryptography` Fernet AEAD; versioned ciphertext is
+in SQLite, while exact 32-byte key remains in `/data/master.key` mode `0600`.
+Missing, invalid or changed key fails safely. Central redaction recursively
+removes authorization, proxy authorization, cookies, passwords, tokens, keys,
+passkeys, secrets and sensitive query parameters. Tracker URL policy validates
+scheme, authority, hostname and DNS addresses initially and after redirects;
+non-global addresses are forbidden, including localhost, loopback and
+link-local targets. TLS certificate verification remains mandatory. Proxy
+failure is fail-closed unless the administrator has configured an explicit,
+acyclic fallback. Administrator-configured internal services are deliberately
+governed by a separate policy.

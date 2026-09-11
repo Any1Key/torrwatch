@@ -17,7 +17,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from torrwatch.domain.enums import InitialSyncMode, JobStatus, JobType, MonitorStatus
+from torrwatch.domain.enums import (
+    InitialSyncMode,
+    JobStatus,
+    JobType,
+    MonitorStatus,
+    ProxyFallbackMode,
+    ProxyType,
+)
 
 
 def utc_now() -> datetime:
@@ -172,3 +179,36 @@ class WorkerHeartbeat(Base):
     worker_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     heartbeat_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+
+
+class ProxyProfile(Base):
+    __tablename__ = "proxy_profiles"
+    __table_args__ = (UniqueConstraint("name", name="uq_proxy_profiles_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    type: Mapped[ProxyType] = mapped_column(String(16), nullable=False)
+    host: Mapped[str | None] = mapped_column(String(255))
+    port: Mapped[int | None] = mapped_column(Integer)
+    username: Mapped[str | None] = mapped_column(String(255))
+    encrypted_password: Mapped[str | None] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    fallback_mode: Mapped[ProxyFallbackMode] = mapped_column(
+        String(16), default=ProxyFallbackMode.DISABLED, nullable=False
+    )
+    fallback_proxy_id: Mapped[int | None] = mapped_column(ForeignKey("proxy_profiles.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class TrackerSession(Base):
+    __tablename__ = "tracker_sessions"
+    __table_args__ = (UniqueConstraint("namespace", name="uq_tracker_sessions_namespace"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    namespace: Mapped[str] = mapped_column(String(255), nullable=False)
+    encrypted_cookies: Mapped[str | None] = mapped_column(Text)
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    last_successful_auth_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)

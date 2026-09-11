@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     worker_heartbeat_seconds: int = Field(default=30, ge=5)
     worker_job_lease_seconds: int = Field(default=180, ge=30)
     worker_lease_renewal_seconds: int = Field(default=60, ge=5)
+    http_connect_timeout_seconds: float = Field(default=10.0, gt=0)
+    http_read_timeout_seconds: float = Field(default=30.0, gt=0)
+    http_write_timeout_seconds: float = Field(default=30.0, gt=0)
+    http_pool_timeout_seconds: float = Field(default=10.0, gt=0)
+    http_max_attempts: int = Field(default=3, ge=1, le=10)
+    http_user_agent: str = "TorrWatch/0.1"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

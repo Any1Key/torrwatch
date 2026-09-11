@@ -44,3 +44,35 @@ Recovery до claim находит только `RUNNING` с истёкшим le
 Если процесс прекращает выполнение, продление прекращается, и job безопасно
 восстанавливается после истечения lease. Retry delays: 1m, 5m, 15m, 1h, затем
 3h. В Фазе 1 handler no-op: tracker/network кода нет.
+
+## Фаза 2: transport и сетевая безопасность
+
+Будущий plugin получает только `HttpTransport` и типизированные
+`TransportRequest`/`TransportResponse`; raw HTTPX client не является plugin
+API. Каждая tracker URL и каждый redirect проходят `TrackerUrlPolicy`: разрешены
+только HTTP(S), запрещены embedded credentials и адреса, которые после DNS
+резолвинга не являются global. Plugins следующей фазы смогут передавать allowlist
+доменов. Это отдельная политика от административных endpoints будущих
+qBittorrent/Transmission/proxy/anti-bot.
+
+Proxy precedence: monitor override, tracker/account assignment, global default,
+иначе Direct. Если выбран profile, его отказ fail-closed по умолчанию; только
+явный fallback может вести к Direct или другому profile, циклы запрещены. HTTPX
+uses `socks5h` для SOCKS5, поэтому DNS name resolution выполняется proxy.
+
+`tracker_sessions` изолирован по logical namespace. Cookie jar сериализуется и
+шифруется before persistence; expired entries игнорируются при load; user-agent
+хранится рядом для будущих browser/anti-bot cookies. `SecretBox` использует
+versioned Fernet authenticated-encryption envelope и 32-byte `/data/master.key`
+outside SQLite. Missing/wrong key produces a clear safe error.
+
+HTTP retry ограничен attempt-ами внутри одного job: transient network/timeouts,
+429 (including Retry-After), and 5xx use exponential jitter backoff. Unsafe POST
+не retry без explicit `safe_to_retry`. Это не Phase 1 persisted job retry.
+Rate limiting in-process per hostname uses async cancellation-aware sleep. Future
+anti-bot is only pluggable extension with explicit challenge classification.
+
+Загрузка proxy/session state и сохранение обновлённых cookies происходят в
+коротких DB-сессиях до и после сетевого запроса; соединение с tracker никогда
+не удерживается внутри транзакции SQLite. TLS verification всегда включена и не
+является настройкой tracker plugin.

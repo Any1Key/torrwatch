@@ -5,12 +5,14 @@ release URLs and safely propagating genuine torrent changes to configured
 torrent clients. Torrent search, media discovery and VPN management are not
 part of this project.
 
-## Phase 0 status
+## Phase 2 status
 
-The bootstrap foundation provides a FastAPI web process, a separate worker
-heartbeat process, SQLite migrations, initial administrator login, Docker
-Compose and automated checks. Monitor management and tracker access begin in
-later phases.
+The foundation provides a FastAPI web process, a separate worker heartbeat
+process, SQLite migrations, initial administrator login and Docker Compose.
+Phase 2 adds the shared asynchronous tracker transport: encrypted isolated
+cookie sessions, Direct/HTTP/SOCKS5 proxy profiles, SSRF and redirect
+validation, bounded HTTP retry/rate limits and recursive secret redaction.
+Tracker plugins and real tracker integrations remain later-phase work.
 
 ## Quick start with Docker Compose
 

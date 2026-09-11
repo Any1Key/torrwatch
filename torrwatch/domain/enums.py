@@ -30,3 +30,15 @@ class JobStatus(StrEnum):
 
 CLAIMABLE_JOB_STATUSES = (JobStatus.PENDING, JobStatus.FAILED_RETRYABLE)
 TERMINAL_JOB_STATUSES = (JobStatus.SUCCESS, JobStatus.FAILED_PERMANENT)
+
+
+class ProxyType(StrEnum):
+    DIRECT = "DIRECT"
+    HTTP = "HTTP"
+    SOCKS5 = "SOCKS5"
+
+
+class ProxyFallbackMode(StrEnum):
+    DISABLED = "DISABLED"
+    DIRECT = "DIRECT"
+    PROFILE = "PROFILE"
