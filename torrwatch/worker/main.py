@@ -16,6 +16,8 @@ from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
 from torrwatch.db.models import DeliveryJob, Job
+from torrwatch.notifications.service import NotificationRepository, NotificationService
+from torrwatch.notifications.types import NotificationError, NotificationErrorCode
 from torrwatch.services.delivery import DeliveryRepository, DeliveryService
 from torrwatch.services.jobs import (
     JobExecutionFailure,
@@ -156,6 +158,63 @@ async def delivery_cycle(
     )
 
 
+async def notification_cycle(
+    database: Database,
+    secrets: SecretBox,
+    worker_id: str,
+    *,
+    lease_seconds: int = 180,
+    renewal_seconds: int = 60,
+    stop_event: asyncio.Event | None = None,
+) -> int:
+    """Process one persisted notification; no new claim during shutdown."""
+    repository = NotificationRepository(database)
+    repository.recover_abandoned()
+    if stop_event is not None and stop_event.is_set():
+        return 0
+    job = repository.claim_next(worker_id, lease_seconds)
+    if job is None:
+        return 0
+    if stop_event is not None and stop_event.is_set():
+        repository.finish(
+            job.id,
+            worker_id,
+            NotificationError(
+                NotificationErrorCode.UNAVAILABLE, "Worker shutdown before notification execution."
+            ),
+        )
+        return 0
+    return int(
+        await execute_claimed_notification(
+            repository,
+            NotificationService(database, secrets),
+            job,
+            worker_id,
+            lease_seconds=lease_seconds,
+            renewal_seconds=renewal_seconds,
+        )
+    )
+
+
+async def execute_claimed_notification(
+    repository: NotificationRepository,
+    service: NotificationService,
+    job: object,
+    worker_id: str,
+    *,
+    lease_seconds: int,
+    renewal_seconds: int,
+) -> bool:
+    """Renew ownership while a notification adapter performs outbound I/O."""
+    task = asyncio.ensure_future(service.send(job, worker_id))  # type: ignore[arg-type]
+    owns = True
+    while not task.done():
+        await asyncio.wait({task}, timeout=renewal_seconds)
+        if not task.done() and not repository.renew_lease(job.id, worker_id, lease_seconds):  # type: ignore[attr-defined]
+            owns = False
+    return owns and await task
+
+
 async def worker_cycle(
     database: Database,
     worker_id: str,
@@ -229,6 +288,15 @@ async def run_worker(settings: Settings) -> None:
             )
             if not stop_event.is_set():
                 await delivery_cycle(
+                    database,
+                    secrets,
+                    identity,
+                    lease_seconds=settings.worker_job_lease_seconds,
+                    renewal_seconds=settings.worker_lease_renewal_seconds,
+                    stop_event=stop_event,
+                )
+            if not stop_event.is_set():
+                await notification_cycle(
                     database,
                     secrets,
                     identity,

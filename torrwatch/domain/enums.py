@@ -62,3 +62,19 @@ class DeliveryStatus(StrEnum):
 
 
 DELIVERY_CLAIMABLE_STATUSES = (DeliveryStatus.PENDING, DeliveryStatus.FAILED_RETRYABLE)
+
+
+class NotificationChannelType(StrEnum):
+    TELEGRAM = "TELEGRAM"
+    WEBHOOK = "WEBHOOK"
+
+
+class NotificationStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED_RETRYABLE = "FAILED_RETRYABLE"
+    FAILED_PERMANENT = "FAILED_PERMANENT"
+
+
+NOTIFICATION_CLAIMABLE_STATUSES = (NotificationStatus.PENDING, NotificationStatus.FAILED_RETRYABLE)

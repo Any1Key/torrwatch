@@ -181,6 +181,15 @@ delivery trigger; initial baseline по-прежнему не доставляе
 persisted bounded retries и fake endpoint-тесты. Критерий: сбой уведомления не
 откатывает release или delivery.
 
+**Статус: выполнено.** Telegram и generic webhook используют typed adapters,
+encrypted channel configuration и durable `notification_jobs` migration
+`20260912_0006`. Очередь использует PENDING/RUNNING/SUCCESS/retryable/permanent
+states, active idempotency key, short conditional claims и lease recovery.
+Outbound send выполняется после DB commit; его сбой не меняет release/delivery.
+Webhook payload имеет schema version и содержит только sanitized application
+fields. Remote notifications имеют best-effort at-least-once semantics после
+response-loss; local enqueue идемпотентен.
+
 ## Фаза 9 — UI completion
 
 Собрать серверные Jinja/HTMX страницы и REST `/api/v1` поверх общего service

@@ -26,6 +26,9 @@ removing the old one, and never requests data deletion. Phase 7 adds NNM-Club
 and Kinozal specific-release plugins using the same encrypted sessions,
 transport, metainfo validation and delivery pipeline. Search, crawling and
 Phase 8 notifications remain out of scope.
+Phase 8 adds encrypted Telegram and generic webhook notification channels with
+durable bounded retries; notification failures never roll back releases or
+torrent-client delivery.
 
 ## Quick start with Docker Compose
 

@@ -23,6 +23,8 @@ from torrwatch.domain.enums import (
     JobStatus,
     JobType,
     MonitorStatus,
+    NotificationChannelType,
+    NotificationStatus,
     ProxyFallbackMode,
     ProxyType,
     TorrentClientType,
@@ -271,5 +273,44 @@ class DeliveryJob(Base):
     next_attempt_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class NotificationChannel(Base):
+    __tablename__ = "notification_channels"
+    __table_args__ = (UniqueConstraint("name", name="uq_notification_channels_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    type: Mapped[NotificationChannelType] = mapped_column(String(32), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    encrypted_config: Mapped[str] = mapped_column(Text, nullable=False)
+    event_types_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class NotificationJob(Base):
+    __tablename__ = "notification_jobs"
+    __table_args__ = (
+        UniqueConstraint("active_key", name="uq_notification_jobs_active_key"),
+        Index("ix_notification_jobs_claimable", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("notification_channels.id"), nullable=False, index=True
+    )
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("events.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[NotificationStatus] = mapped_column(String(32), nullable=False)
+    active_key: Mapped[str | None] = mapped_column(String(255))
+    worker_id: Mapped[str | None] = mapped_column(String(255))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     last_error: Mapped[str | None] = mapped_column(Text)

@@ -17,3 +17,5 @@ All notable changes to TorrWatch are documented here.
 - Added Phase 7 NNM-Club and Kinozal built-in plugins with isolated URL/parser
   behavior, sanitized offline fixtures and reuse of the shared monitor,
   validation and delivery pipeline.
+- Added Phase 8 Telegram/webhook notification foundations with encrypted
+  configuration and durable retryable delivery state.
