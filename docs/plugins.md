@@ -1,13 +1,18 @@
 # Плагины tracker
 
-## Граница Phase 5
+## Встроенные plugins (Phase 5 и 7)
 
 Phase 3 предоставляет framework. Phase 5 добавляет trusted built-in
-`rutracker`; NNM-Club и Kinozal по нормативному плану остаются Phase 7.
+`rutracker`; NNM-Club и Kinozal добавлены в Phase 7.
 `rutracker` принимает только explicit topic URL
 `https://rutracker.org/forum/viewtopic.php?t=<positive-id>` (вариант `www` и
 HTTP нормализуются). Search, index, profile и произвольные forum pages
 отвергаются. Тестовый `FakePlugin` остаётся только offline test harness.
+
+`nnmclub` принимает только `https://nnmclub.to/forum/viewtopic.php?t=<positive-id>`;
+`kinozal` — только `https://kinozal.tv/details.php?id=<positive-id>`. Их
+download references остаются в manifest-declared hosts. Они не реализуют
+search, crawl, account login flow или CAPTCHA bypass.
 
 ## Контракт
 
@@ -50,9 +55,9 @@ Plugin получает `TrackerPluginContext`, но не Database, SQLAlchemy s
 Все tracker HTTP-запросы проходят shared transport с TLS, redirect/DNS SSRF
 validation, encryption-backed session jars, redaction, retry и rate limits.
 
-## RuTracker session и fixtures
+## Sessions и fixtures
 
-Phase 5 использует существующий encrypted `tracker_sessions` через logical
+Phase 5/7 plugins используют существующий encrypted `tracker_sessions` через logical
 `rutracker:monitor:<id>` namespace (или account namespace, когда оно назначено).
 V1 поддерживает manual cookie/session import; нет отдельной таблицы plaintext
 credentials и нет login storm. Login page классифицируется как `AUTH_REQUIRED`,
@@ -62,6 +67,18 @@ credentials и нет login storm. Login page классифицируется �
 только структуру, нужную parser tests. Они не содержат реальной страницы,
 cookies, account names, tokens или other personal data. Normal CI никогда не
 обращается к RuTracker.
+
+Fixtures NNM-Club и Kinozal в `tests/fixtures/nnmclub/` и
+`tests/fixtures/kinozal/` также hand-written/minimal: normal topic, login page
+и broken markup. Они не являются dumps живых tracker pages.
+
+## Clean-room parser boundary
+
+Each parser independently extracts only title, stable ID, preliminary
+marker/timestamp and one torrent reference. Missing/ambiguous markup is
+`PLUGIN_PARSE_ERROR`; login document is `AUTH_REQUIRED`; raw document and
+authentication material never enter error/event. Normal tests use fake scoped
+HTTP and do not contact real trackers.
 
 ## Registry и external directories
 

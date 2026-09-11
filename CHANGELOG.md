@@ -14,3 +14,6 @@ All notable changes to TorrWatch are documented here.
 - Added Phase 6 encrypted qBittorrent/Transmission client adapters and durable
   delivery jobs with lease recovery, idempotent retry and add → verify →
   remove replacement that never deletes downloaded data.
+- Added Phase 7 NNM-Club and Kinozal built-in plugins with isolated URL/parser
+  behavior, sanitized offline fixtures and reuse of the shared monitor,
+  validation and delivery pipeline.

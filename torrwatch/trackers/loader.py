@@ -12,9 +12,11 @@ from torrwatch.trackers.types import TrackerPlugin
 def builtin_plugins() -> tuple[TrackerPlugin, ...]:
     """Return trusted in-tree implementations in deterministic registration order."""
 
+    from torrwatch.trackers.kinozal import KinozalPlugin
+    from torrwatch.trackers.nnmclub import NnmClubPlugin
     from torrwatch.trackers.rutracker import RuTrackerPlugin
 
-    return (RuTrackerPlugin(),)
+    return (RuTrackerPlugin(), NnmClubPlugin(), KinozalPlugin())
 
 
 def load_plugin_registry(

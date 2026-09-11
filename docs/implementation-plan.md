@@ -164,6 +164,17 @@ NNM-Club, Kinozal, notifications и UI управления clients остают
 классификацией auth/network/blocking и тем же transport. Критерий: изменения
 парсеров ловятся offline тестами.
 
+**Статус: выполнено.** Добавлены trusted built-in `nnmclub` и `kinozal` с
+exact URL ownership, stable topic/release IDs, canonical HTTPS URLs и minimal
+sanitized HTML fixtures. Их parser/code lives исключительно в plugin packages
+и использует scoped Phase 2 transport, manifest allowlist и encrypted cookie
+session namespace. Phase 5 monitor pipeline без tracker branches переиспользует
+forced verification, strict validation, exact-infohash history и Phase 6
+delivery trigger; initial baseline по-прежнему не доставляется. Новая schema
+не нужна: generic plugin, monitor, session, release и delivery модели уже
+представляют требуемое состояние. Search/crawling, notifications и UI completion
+остаются следующими фазами.
+
 ## Фаза 8 — Notifications
 
 Добавить Telegram и generic webhook, события, зашифрованные секреты,

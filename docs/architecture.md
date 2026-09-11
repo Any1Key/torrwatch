@@ -162,3 +162,20 @@ old → remove old`. Remove допустим только после verify new 
 false для удаления данных. Повторная попытка при crash/response-loss вновь
 инспектирует client: уже добавленный new или уже удалённый old являются
 идемпотентными состояниями. Финальный status пишется только текущим owner.
+
+## Фаза 7: NNM-Club и Kinozal
+
+Built-in `nnmclub` принимает только `https://nnmclub.to/forum/viewtopic.php?t=<id>`;
+`kinozal` — только `https://kinozal.tv/details.php?id=<id>`. Plugins
+канонизируют harmless host/scheme/query variants, отвергают index/search и
+несвязанные pages, а parser извлекает только title, stable ID, source marker,
+optional timestamp и torrent reference. Download host Kinozal declared in its
+manifest alongside page host, поэтому scoped HTTP context применяет тот же
+allowlist к обоим URL.
+
+Оба plugin остаются pure tracker boundary: они не получают DB/clients/raw
+HTTPX и не имеют собственных retry, proxy или storage решений. Общий
+`MonitorCheckService` сохраняет единые semantics `version_key` versus exact
+infohash, forced verification, baseline-only initial sync и delivery enqueue.
+Phase 7 не требует schema change: таблицы monitor/session/release/delivery уже
+tracker-agnostic.

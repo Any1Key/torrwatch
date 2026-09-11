@@ -90,3 +90,13 @@ redirects не следуются, TLS certificate verification обязател
 адреса допустимы здесь намеренно и не ослабляют tracker SSRF policy. Автоматическая
 замена вызывает qBittorrent с `deleteFiles=false` и Transmission с
 `delete-local-data=false`; данные пользователя не удаляются даже при retry.
+
+## Phase 7 tracker plugins
+
+NNM-Club и Kinozal получают только scoped `PluginContext`. Их domains declared
+в manifest становятся transport allowlist; redirect и DNS revalidation,
+encrypted isolated cookie sessions, selected proxy fail-closed behavior, TLS,
+redaction, retry и rate limiting остаются общими Phase 2 controls. Manual
+cookie import uses the same `tracker_sessions` namespaces; plugins не создают
+plaintext credential storage и не сохраняют raw HTML. Local parser fixtures
+ручно минимизированы и не содержат account data, cookies или tokens.

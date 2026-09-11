@@ -22,8 +22,10 @@ method); it has no standalone credential store. Phase 6 adds encrypted,
 administrator-configured qBittorrent and Transmission clients plus a durable
 delivery queue. A real later infohash change queues delivery; an initial
 baseline does not. Delivery always adds and verifies the new torrent before
-removing the old one, and never requests data deletion. NNM-Club and Kinozal
-remain Phase 7.
+removing the old one, and never requests data deletion. Phase 7 adds NNM-Club
+and Kinozal specific-release plugins using the same encrypted sessions,
+transport, metainfo validation and delivery pipeline. Search, crawling and
+Phase 8 notifications remain out of scope.
 
 ## Quick start with Docker Compose
 
