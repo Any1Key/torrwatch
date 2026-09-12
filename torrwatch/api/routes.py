@@ -1,12 +1,14 @@
-"""Phase 0 browser and health routes."""
+"""Authenticated Phase 9 browser pages and versioned REST API."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
 from torrwatch.core.security import (
     USER_SESSION_KEY,
@@ -16,11 +18,25 @@ from torrwatch.core.security import (
     verify_password,
 )
 from torrwatch.db.models import User
+from torrwatch.services.admin import AdminService, AdminValidationError
 
 router = APIRouter()
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "web" / "templates")
 )
+
+
+def admin_service(request: Request) -> AdminService:
+    return AdminService(request.app.state.database, request.app.state.plugin_registry)
+
+
+def page_context(request: Request, user: User, **values: Any) -> dict[str, Any]:
+    return {"csrf_token": csrf_token(request), "username": user.username, **values}
+
+
+def require_api_csrf(request: Request) -> None:
+    """Require the session-bound token for JSON mutations as well as forms."""
+    require_csrf(request, request.headers.get("X-CSRF-Token", ""))
 
 
 @router.get("/health/live", include_in_schema=False)
@@ -31,16 +47,12 @@ def live() -> JSONResponse:
 @router.get("/health/ready", include_in_schema=False)
 def ready(request: Request) -> JSONResponse:
     if not request.app.state.ready:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Application is not ready."
-        )
+        raise HTTPException(status_code=503, detail="Application is not ready.")
     try:
         with request.app.state.database.engine.connect() as connection:
             connection.exec_driver_sql("SELECT 1")
     except Exception as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is unavailable."
-        ) from error
+        raise HTTPException(status_code=503, detail="Database is unavailable.") from error
     return JSONResponse({"status": "ready"})
 
 
@@ -48,8 +60,7 @@ def ready(request: Request) -> JSONResponse:
 def metrics() -> Response:
     return Response(
         "# HELP torrwatch_phase0_info TorrWatch bootstrap information\n"
-        "# TYPE torrwatch_phase0_info gauge\n"
-        "torrwatch_phase0_info 1\n",
+        "# TYPE torrwatch_phase0_info gauge\ntorrwatch_phase0_info 1\n",
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
@@ -65,10 +76,7 @@ def login_form(request: Request) -> HTMLResponse:
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
 def login(
-    request: Request,
-    username: str = Form(),
-    password: str = Form(),
-    csrf: str = Form(),
+    request: Request, username: str = Form(), password: str = Form(), csrf: str = Form()
 ) -> Response:
     require_csrf(request, csrf)
     with request.app.state.database.session() as database_session:
@@ -78,7 +86,7 @@ def login(
                 request=request,
                 name="login.html",
                 context={"csrf_token": csrf_token(request), "error": "Неверное имя или пароль."},
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=401,
             )
         request.session[USER_SESSION_KEY] = user.id
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
@@ -94,9 +102,206 @@ def logout(
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def home(request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
+def dashboard(request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
-        name="home.html",
-        context={"csrf_token": csrf_token(request), "username": user.username},
+        name="dashboard.html",
+        context=page_context(request, user, dashboard=admin_service(request).dashboard()),
     )
+
+
+@router.get("/monitors", response_class=HTMLResponse, include_in_schema=False)
+def monitors_page(request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="monitors.html",
+        context=page_context(request, user, monitors=admin_service(request).monitors()),
+    )
+
+
+@router.get("/monitors/new", response_class=HTMLResponse, include_in_schema=False)
+def new_monitor_page(request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request, name="monitor_form.html", context=page_context(request, user, error=None)
+    )
+
+
+@router.post("/monitors", include_in_schema=False)
+def create_monitor_page(
+    request: Request,
+    name: str = Form(),
+    url: str = Form(),
+    interval_seconds: int = Form(1800),
+    csrf: str = Form(),
+    user: User = Depends(require_admin),
+) -> Response:
+    require_csrf(request, csrf)
+    try:
+        monitor = admin_service(request).create_monitor(name, url, interval_seconds)
+    except AdminValidationError as error:
+        return templates.TemplateResponse(
+            request=request,
+            name="monitor_form.html",
+            context=page_context(request, user, error=str(error)),
+            status_code=422,
+        )
+    return RedirectResponse(f"/monitors/{monitor['id']}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/monitors/{monitor_id}", response_class=HTMLResponse, include_in_schema=False)
+def monitor_page(
+    monitor_id: int, request: Request, user: User = Depends(require_admin)
+) -> HTMLResponse:
+    service = admin_service(request)
+    monitor = service.monitor(monitor_id)
+    if monitor is None:
+        raise HTTPException(status_code=404, detail="Monitor not found.")
+    return templates.TemplateResponse(
+        request=request,
+        name="monitor_detail.html",
+        context=page_context(request, user, monitor=monitor, timeline=service.timeline(monitor_id)),
+    )
+
+
+@router.post("/monitors/{monitor_id}/check", include_in_schema=False)
+def check_monitor_page(
+    monitor_id: int, request: Request, csrf: str = Form(), _: User = Depends(require_admin)
+) -> RedirectResponse:
+    require_csrf(request, csrf)
+    try:
+        admin_service(request).enqueue_check(monitor_id)
+    except AdminValidationError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return RedirectResponse(f"/monitors/{monitor_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+_PAGES = {
+    "trackers": "Tracker plugins",
+    "tracker-accounts": "Tracker accounts",
+    "proxies": "Proxy profiles",
+    "clients": "Torrent clients",
+    "notifications": "Notifications",
+    "events": "Events",
+    "settings": "Settings",
+    "system": "System status",
+}
+
+
+@router.get("/{page}", response_class=HTMLResponse, include_in_schema=False)
+def resource_page(page: str, request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
+    if page not in _PAGES:
+        raise HTTPException(status_code=404, detail="Page not found.")
+    service = admin_service(request)
+    if page == "trackers":
+        rows: Any = service.trackers()
+    elif page == "settings":
+        rows = service.settings()
+    elif page == "system":
+        rows = service.system()
+    elif page == "events":
+        rows = service.events()
+    elif page == "tracker-accounts":
+        rows = []
+    else:
+        rows = service.resource(page)
+    return templates.TemplateResponse(
+        request=request,
+        name="resource.html",
+        context=page_context(request, user, title=_PAGES[page], rows=rows),
+    )
+
+
+class MonitorCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    url: str = Field(min_length=1, max_length=4096)
+    interval_seconds: int = Field(default=1800, ge=300)
+
+
+class MonitorUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    interval_seconds: int = Field(ge=300)
+    paused: bool = False
+
+
+@router.get("/api/v1/monitors")
+def api_monitors(request: Request, _: User = Depends(require_admin)) -> list[dict[str, Any]]:
+    return admin_service(request).monitors()
+
+
+@router.post("/api/v1/monitors", status_code=201)
+def api_create_monitor(
+    request: Request,
+    data: MonitorCreate,
+    _: User = Depends(require_admin),
+    __: None = Depends(require_api_csrf),
+) -> dict[str, Any]:
+    try:
+        return admin_service(request).create_monitor(data.name, data.url, data.interval_seconds)
+    except AdminValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/api/v1/monitors/{monitor_id}")
+def api_monitor(
+    monitor_id: int, request: Request, _: User = Depends(require_admin)
+) -> dict[str, Any]:
+    item = admin_service(request).monitor(monitor_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Monitor not found.")
+    return item
+
+
+@router.put("/api/v1/monitors/{monitor_id}")
+def api_update_monitor(
+    monitor_id: int,
+    request: Request,
+    data: MonitorUpdate,
+    _: User = Depends(require_admin),
+    __: None = Depends(require_api_csrf),
+) -> dict[str, Any]:
+    try:
+        return admin_service(request).update_monitor(
+            monitor_id, name=data.name, interval_seconds=data.interval_seconds, paused=data.paused
+        )
+    except AdminValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/api/v1/monitors/{monitor_id}/check", status_code=202)
+def api_check_monitor(
+    monitor_id: int,
+    request: Request,
+    _: User = Depends(require_admin),
+    __: None = Depends(require_api_csrf),
+) -> dict[str, bool]:
+    try:
+        return {"queued": admin_service(request).enqueue_check(monitor_id)}
+    except AdminValidationError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/api/v1/monitors/{monitor_id}/events")
+def api_monitor_events(
+    monitor_id: int, request: Request, _: User = Depends(require_admin)
+) -> list[dict[str, Any]]:
+    return admin_service(request).timeline(monitor_id)
+
+
+@router.get("/api/v1/trackers")
+def api_trackers(request: Request, _: User = Depends(require_admin)) -> list[dict[str, Any]]:
+    return admin_service(request).trackers()
+
+
+@router.get("/api/v1/{resource}")
+def api_resource(resource: str, request: Request, _: User = Depends(require_admin)) -> Any:
+    service = admin_service(request)
+    if resource == "events":
+        return service.events()
+    if resource == "system":
+        return service.system()
+    if resource == "tracker-accounts":
+        return []
+    try:
+        return service.resource(resource)
+    except AdminValidationError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error

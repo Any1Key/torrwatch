@@ -197,6 +197,11 @@ layer: dashboard, monitors, timeline, plugins/accounts/proxies/clients,
 notifications, events, settings, system status. Добавить accessibility и
 browser/integration тесты для критических сценариев.
 
+Статус: server-rendered responsive admin pages и `/api/v1` используют общий
+`AdminService`; monitor URL canonicalization идёт через plugin registry, а
+manual check только ставит durable job в очередь. Browser/JSON mutations имеют
+CSRF, safe serialization не раскрывает encrypted configuration или secrets.
+
 ## Фаза 10 — Hardening/release
 
 Провести security review, migration/backup/restore и fresh-deployment тесты,

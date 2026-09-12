@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}Dashboard — TorrWatch{% endblock %}{% block content %}
+<h2>Dashboard</h2><section class="cards" aria-label="Сводка">
+{% for key,value in dashboard.items() %}<div class="card"><strong>{{ key }}</strong><br>{{ value if value is not none else "—" }}</div>{% endfor %}
+</section>{% endblock %}

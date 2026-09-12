@@ -108,3 +108,16 @@ Telegram bot token, webhook Authorization и static sensitive headers наход
 payload/error messages; webhook payload is versioned and contains sanitized
 application state only. Webhook endpoints are administrator configured HTTP(S)
 destinations with TLS verification and redirects disabled.
+
+## Phase 9 web/API boundary
+
+Administrative pages and `/api/v1` require the existing single-admin session.
+The cookie remains HttpOnly and SameSite=Lax, and is Secure when HTTPS mode is
+configured. Form mutations carry the session CSRF token; JSON mutations require
+`X-CSRF-Token`. Templates and API read models omit encrypted configuration,
+passwords, tokens, cookies and Authorization values.
+
+Manual commands are not arbitrary URL fetchers. They enqueue existing durable
+work after short transactions, so no request keeps a SQLite transaction open
+across tracker/client/notification network I/O. Validation errors are safe
+short messages and never render raw tracker HTML or exception traces.

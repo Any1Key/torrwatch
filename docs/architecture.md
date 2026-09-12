@@ -188,3 +188,16 @@ outbound send выполняется после commit source state и не мо
 или delivery. States PENDING/RUNNING/SUCCESS/FAILED_RETRYABLE/FAILED_PERMANENT
 имеют active idempotency key, bounded retry и lease recovery. Remote acceptance
 остаётся best-effort at-least-once при response-loss.
+
+## Фаза 9: web UI и API
+
+FastAPI обслуживает server-rendered Jinja UI и `/api/v1` поверх общего
+`AdminService`: dashboard, monitors/timeline, plugins, integrations, events,
+settings и system status. Service выполняет только короткие DB операции;
+`Check now` идемпотентно enqueue-ит существующую durable monitor job и не
+выполняет tracker/client I/O в HTTP request. Dashboard читает persisted worker
+heartbeat, jobs и schedule, а не предполагает health только по process state.
+
+Monitor create validates URL through `PluginRegistry`, saving canonical URL and
+external ID. UI is responsive semantic HTML with local CSS and no SPA/Node
+build chain. Safe read models intentionally omit encrypted config and secrets.

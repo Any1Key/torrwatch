@@ -21,6 +21,14 @@ Compose использует `./data:/data`. В этом каталоге нах
 Контейнер запускает приложение непривилегированным пользователем, не требует
 Docker socket, host network, `NET_ADMIN` или `privileged` mode.
 
+## Administrative UI (Phase 9)
+
+The UI is server-rendered and has no Node/SPA build step. Publish it through
+HTTPS in production and set `TORRWATCH_SESSION_HTTPS_ONLY=true` so the
+administrator session cookie is Secure. Reverse proxies must preserve ordinary
+form posts and the `X-CSRF-Token` header used by JSON mutations. Do not expose
+the admin UI or `/api/v1` to an untrusted network without an access boundary.
+
 ## Torrent clients (Phase 6)
 
 qBittorrent и Transmission — administrator-configured internal endpoints.

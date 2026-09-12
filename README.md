@@ -5,7 +5,7 @@ release URLs and safely propagating genuine torrent changes to configured
 torrent clients. Torrent search, media discovery and VPN management are not
 part of this project.
 
-## Phase 6 status
+## Current status
 
 The foundation provides a FastAPI web process, a separate worker heartbeat
 process, SQLite migrations, initial administrator login and Docker Compose.
@@ -29,6 +29,10 @@ Phase 8 notifications remain out of scope.
 Phase 8 adds encrypted Telegram and generic webhook notification channels with
 durable bounded retries; notification failures never roll back releases or
 torrent-client delivery.
+Phase 9 adds an authenticated server-rendered administrative UI and versioned
+REST API. Dashboard, monitors/timeline, configured integrations, events,
+settings and system status use the same application service. “Check now” only
+queues durable work; it never contacts a tracker in the HTTP request.
 
 ## Quick start with Docker Compose
 
