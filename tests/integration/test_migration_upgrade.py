@@ -7,12 +7,12 @@ from torrwatch.db.database import Database
 from torrwatch.db.migrations import alembic_config, upgrade_database
 
 
-def test_phase_five_database_upgrades_to_phase_six(settings: object) -> None:
+def test_phase_seven_database_upgrades_to_phase_eight(settings: object) -> None:
     from alembic import command
 
     ensure_runtime_files(settings)  # type: ignore[arg-type]
     config = alembic_config(settings)  # type: ignore[arg-type]
-    command.upgrade(config, "20260910_0004")
+    command.upgrade(config, "20260911_0005")
     upgrade_database(settings)  # type: ignore[arg-type]
     database = Database(settings.resolved_database_url)  # type: ignore[union-attr]
     try:
@@ -28,8 +28,14 @@ def test_phase_five_database_upgrades_to_phase_six(settings: object) -> None:
             "plugin_states",
             "torrent_clients",
             "delivery_jobs",
+            "notification_channels",
+            "notification_jobs",
         } <= tables
         indexes = {item["name"] for item in inspect(database.engine).get_indexes("delivery_jobs")}
         assert "ix_delivery_jobs_claimable" in indexes
+        notification_indexes = {
+            item["name"] for item in inspect(database.engine).get_indexes("notification_jobs")
+        }
+        assert "ix_notification_jobs_claimable" in notification_indexes
     finally:
         database.dispose()
