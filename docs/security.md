@@ -100,3 +100,11 @@ redaction, retry и rate limiting остаются общими Phase 2 controls
 cookie import uses the same `tracker_sessions` namespaces; plugins не создают
 plaintext credential storage и не сохраняют raw HTML. Local parser fixtures
 ручно минимизированы и не содержат account data, cookies или tokens.
+
+## Phase 8 notifications
+
+Telegram bot token, webhook Authorization и static sensitive headers находятся
+только в Fernet-encrypted channel config. Adapters never put these fields in
+payload/error messages; webhook payload is versioned and contains sanitized
+application state only. Webhook endpoints are administrator configured HTTP(S)
+destinations with TLS verification and redirects disabled.

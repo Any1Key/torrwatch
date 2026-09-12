@@ -179,3 +179,12 @@ HTTPX и не имеют собственных retry, proxy или storage ре
 infohash, forced verification, baseline-only initial sync и delivery enqueue.
 Phase 7 не требует schema change: таблицы monitor/session/release/delivery уже
 tracker-agnostic.
+
+## Фаза 8: notifications
+
+`notification_channels` хранит encrypted Telegram/webhook configuration и
+subscribed event types. `notification_jobs` — отдельная durable очередь;
+outbound send выполняется после commit source state и не может откатить release
+или delivery. States PENDING/RUNNING/SUCCESS/FAILED_RETRYABLE/FAILED_PERMANENT
+имеют active idempotency key, bounded retry и lease recovery. Remote acceptance
+остаётся best-effort at-least-once при response-loss.
