@@ -19,3 +19,5 @@ All notable changes to TorrWatch are documented here.
   validation and delivery pipeline.
 - Added Phase 8 Telegram/webhook notification foundations with encrypted
   configuration and durable retryable delivery state.
+- Finalized Phase 10 release operations: safe diagnostics, durable manual-check
+  CLI, encrypted-state-aware backup, plugin inventory and acceptance coverage.

@@ -35,6 +35,7 @@ dev = [
 ]
 
 [project.scripts]
+torrwatch = "torrwatch.cli:main"
 torrwatch-web = "torrwatch.main:run"
 torrwatch-worker = "torrwatch.worker.main:run"
 

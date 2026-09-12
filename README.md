@@ -48,3 +48,12 @@ key at `/data/master.key`; keep it with backups and never commit or disclose it.
 
 See [deployment documentation](docs/deployment.md) for reverse-proxy and
 backup notes. The full roadmap is in [the implementation plan](docs/implementation-plan.md).
+
+## Operations and v1 limitations
+
+`torrwatch doctor`, `torrwatch plugins list`, `torrwatch check <monitor-id>`,
+`torrwatch backup <directory>` and `torrwatch admin reset-password` are the
+supported operational commands. Backup excludes the master key unless
+`--include-master-key` is explicit; without that key encrypted credentials and
+sessions cannot be recovered. v1 has no search, crawling, VPN, media catalog or
+CAPTCHA-bypass subsystem.
