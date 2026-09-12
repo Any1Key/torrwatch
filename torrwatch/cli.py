@@ -15,7 +15,6 @@ from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.security import hash_password
 from torrwatch.db.database import Database
-from torrwatch.db.migrations import upgrade_database
 from torrwatch.db.models import User, WorkerHeartbeat
 from torrwatch.services.jobs import JobRepository, now_utc
 from torrwatch.trackers.loader import load_plugin_registry
@@ -23,7 +22,6 @@ from torrwatch.trackers.loader import load_plugin_registry
 
 def _database(settings: Settings) -> Database:
     ensure_runtime_files(settings)
-    upgrade_database(settings)
     return Database(settings.resolved_database_url)
 
 
