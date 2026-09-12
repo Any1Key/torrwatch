@@ -1,14 +1,1 @@
-<!doctype html>
-<html lang="ru">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}TorrWatch{% endblock %}</title>
-    <style>body{font-family:system-ui,sans-serif;margin:auto;max-width:1100px;padding:1rem}nav{display:flex;gap:.8rem;flex-wrap:wrap}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:.45rem;text-align:left}input{display:block;margin:.3rem 0 1rem;min-width:18rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:1rem}.card{border:1px solid #ccc;padding:1rem} .error{color:#a00}</style>
-  </head>
-  <body>
-    <header><h1><a href="/">TorrWatch</a></h1><nav aria-label="Основная навигация"><a href="/monitors">Мониторы</a><a href="/trackers">Трекеры</a><a href="/tracker-accounts">Аккаунты</a><a href="/proxies">Прокси</a><a href="/clients">Клиенты</a><a href="/notifications">Уведомления</a><a href="/events">События</a><a href="/settings">Настройки</a><a href="/system">Система</a></nav><p>Вы вошли как {{ username }}.</p></header>
-    <main>{% block content %}{% endblock %}</main>
-    <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button type="submit">Выйти</button></form>
-  </body>
-</html>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}TorrWatch · Администрирование{% endblock %}</title><link rel="stylesheet" href="/static/admin.css"><script defer src="/static/admin.js"></script></head><body><a class="skip" href="#content">К содержимому</a><aside class="sidebar"><a class="brand" href="/"><span class="brand-icon">T</span>TorrWatch</a><p class="eyebrow">УПРАВЛЕНИЕ РАЗДАЧАМИ</p><nav aria-label="Основная навигация">{% for href,label in [('/','Обзор'),('/monitors','Мониторы'),('/settings/sessions','Трекеры и сессии'),('/proxies','Прокси-профили'),('/clients','Торрент-клиенты'),('/notifications','Уведомления'),('/events','События'),('/system','Система / настройки')] %}<a href="{{ href }}" {% if path == href or (href != '/' and path and path.startswith(href)) %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav><div class="sidebar-footer">Вы вошли как {{ username }}.<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="secondary" type="submit">Выйти</button></form></div></aside><main id="content" class="main"><div class="topline">РАБОЧЕЕ ПРОСТРАНСТВО <span>Локальный сервер</span></div>{% if flash %}<div class="notice" role="status">{{ flash }}</div>{% endif %}{% block content %}{% endblock %}</main></body></html>

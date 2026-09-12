@@ -201,3 +201,11 @@ heartbeat, jobs и schedule, а не предполагает health тольк�
 Monitor create validates URL through `PluginRegistry`, saving canonical URL and
 external ID. UI is responsive semantic HTML with local CSS and no SPA/Node
 build chain. Safe read models intentionally omit encrypted config and secrets.
+## Исправление административного UX v1
+
+Browser controllers в `web/admin.py` используют `ConfigurationService` для
+коротких операций над существующими моделями. Схема не меняется. Registry
+разрешает URL; shared session привязывается к существующему account namespace.
+Проверка монитора и тест уведомления только enqueue-ят durable work.
+Навигация, onboarding, конфигурационные формы и локальные assets описаны в
+[руководстве администратора](admin-setup.md). Core worker/transport не изменены.

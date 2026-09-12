@@ -57,3 +57,8 @@ supported operational commands. Backup excludes the master key unless
 `--include-master-key` is explicit; without that key encrypted credentials and
 sessions cannot be recovered. v1 has no search, crawling, VPN, media catalog or
 CAPTCHA-bypass subsystem.
+# Настройка через веб-интерфейс
+
+После входа выполните шаги на странице обзора: **торрент-клиент → сессия
+трекера → монитор → Проверить сейчас**. Уведомления необязательны.
+Подробности и ограничения: [первичная настройка](docs/admin-setup.md).

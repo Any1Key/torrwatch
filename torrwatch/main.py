@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from torrwatch.api.routes import router
@@ -17,6 +19,7 @@ from torrwatch.db.bootstrap import bootstrap_admin
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
 from torrwatch.trackers.loader import load_plugin_registry
+from torrwatch.web.admin import router as browser_router
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="TorrWatch", version="0.1.0", lifespan=lifespan)
     app.state.database = database
+    app.state.settings = active_settings
     app.state.ready = False
     app.add_middleware(
         SessionMiddleware,
@@ -50,6 +54,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         same_site="lax",
         https_only=active_settings.session_https_only,
     )
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(Path(__file__).parent / "web" / "static")),
+        name="static",
+    )
+    app.include_router(browser_router)
     app.include_router(router)
     return app
 

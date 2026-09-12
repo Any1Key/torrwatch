@@ -27,7 +27,7 @@ def _login(client: TestClient) -> str:
 def test_phase9_dashboard_pages_and_read_api_require_administrator(client: TestClient) -> None:
     assert client.get("/").status_code == 401
     _login(client)
-    assert "total_monitors" in client.get("/").text
+    assert "Мониторы" in client.get("/").text
     for page in (
         "/monitors",
         "/trackers",

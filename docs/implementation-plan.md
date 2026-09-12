@@ -216,3 +216,10 @@ release notes. Критерий: все v1 acceptance-тесты и quality gate
 Транспорт и безопасность (Фаза 2) должны быть готовы до реальных плагинов;
 плагинный контракт (Фаза 3) — до tracker-реализаций; torrent engine (Фаза 4) —
 до загрузки реальных release; очередь и модели Фазы 1 — до delivery в Фазе 6.
+## Release fix: административный UX v1 (не Phase 11)
+
+Исправляется непроходимый browser onboarding: shell, пустые состояния,
+формы существующих clients/proxies/notifications/sessions, привязка monitor,
+enqueue-only действия и readable system status. Без изменения схемы, tracker
+логики или worker semantics. Acceptance: offline browser integration tests,
+Ruff/format/mypy/pytest ≥80%, Docker build и authenticated UI smoke.

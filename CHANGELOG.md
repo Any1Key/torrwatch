@@ -21,3 +21,10 @@ All notable changes to TorrWatch are documented here.
   configuration and durable retryable delivery state.
 - Finalized Phase 10 release operations: safe diagnostics, durable manual-check
   CLI, encrypted-state-aware backup, plugin inventory and acceptance coverage.
+## Unreleased — исправление интерфейса v1
+
+- Добавлены onboarding, постоянная навигация, локальный адаптивный дизайн,
+  понятные пустые состояния и формы существующих подключений.
+- Browser setup связывает monitor с клиентом, прокси и зашифрованной сессией;
+  секреты write-only. Check now и тест уведомления используют durable queues.
+- Добавлены offline integration regression tests; схема БД не изменена.

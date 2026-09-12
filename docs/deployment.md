@@ -42,3 +42,9 @@ Delivery выполняется worker-ом из durable queue. При заме�
 проверяет новый validated torrent до удаления старого, передавая
 `deleteFiles=false` (qBittorrent) или `delete-local-data=false` (Transmission).
 Поэтому автоматический retry не удаляет download data.
+## Настройка после запуска
+
+Подключения создаются через браузер без ручных API-запросов:
+[инструкция](admin-setup.md). Изменение UI не требует миграции или установки
+Node. Пересоберите образ и выполните `docker compose up -d --build`.
+Существующие `/data` и master key должны сохраняться.

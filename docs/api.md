@@ -17,3 +17,12 @@ mutations require the session-bound `X-CSRF-Token` header.
 `POST /api/v1/monitors/{id}/check` returns `202` after idempotently enqueueing
 the durable monitor check. It never performs a tracker request. Secret-bearing
 configuration is write-only and is absent from all read serialization.
+## Browser configuration routes
+
+`GET/POST /configure/{clients|proxies|notifications|sessions}` открывает/сохраняет
+форму; `/{id}` редактирует существующее подключение (кроме sessions).
+`/monitors/new` и `/monitors/{id}/edit` используют `POST /configure/monitors[/id]`.
+`GET /resolve-url` выполняет только локальное registry resolution.
+`POST /monitors/{id}/check`, `/monitors/{id}/pause`, `/notifications/{id}/test`
+требуют form CSRF. Check и notification test ставятся в существующие очереди.
+Все маршруты требуют admin session; secrets не возвращаются.

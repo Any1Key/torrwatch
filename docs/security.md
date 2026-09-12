@@ -121,3 +121,11 @@ Manual commands are not arbitrary URL fetchers. They enqueue existing durable
 work after short transactions, so no request keeps a SQLite transaction open
 across tracker/client/notification network I/O. Validation errors are safe
 short messages and never render raw tracker HTML or exception traces.
+## Browser configuration v1
+
+Все configuration POST требуют admin session и CSRF. Secret inputs никогда
+не получают `value`, включая повторный показ формы после ошибки. Cookie import
+использует общий encrypted SessionStore; клиентские и proxy passwords —
+SecretBox. Namespace общей UI-сессии `<plugin>:account:1` изолирован по plugin.
+Сохранение cookie не означает подтверждённую авторизацию. Тест уведомления
+enqueue-only; ошибки формы не показывают исключения и сторонние ответы.
