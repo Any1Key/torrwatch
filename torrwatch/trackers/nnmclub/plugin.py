@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 from torrwatch.trackers.nnmclub.parser import (
     NnmClubAuthenticationRequired,
     NnmClubParseError,
+    decode_topic_page,
     parse_topic_page,
 )
 from torrwatch.trackers.types import (
@@ -21,14 +22,14 @@ from torrwatch.trackers.types import (
     TrackerPluginError,
     TrackerTarget,
 )
-from torrwatch.transport.http import TransportError
+from torrwatch.transport.http import TransportError, TransportResponse
 
 
 class NnmClubPlugin:
     manifest = TrackerManifest(
         id="nnmclub",
         display_name="NNM-Club",
-        version="1.0.0",
+        version="1.0.1",
         plugin_api_version=PLUGIN_API_VERSION,
         core_min_version="0.1.0",
         domains=("nnmclub.to",),
@@ -73,6 +74,8 @@ class NnmClubPlugin:
             response = await ctx.http.request("GET", "https://nnmclub.to/forum/index.php")
         except TransportError:
             return PluginHealth(False, message="NNM-Club is temporarily unavailable.")
+        if _is_challenge(response):
+            return PluginHealth(False, message="NNM-Club access is blocked by a challenge.")
         return PluginHealth(response.status_code < 500, response.status_code in {401, 403})
 
     async def check(self, target: TrackerTarget, ctx: PluginContext) -> RemoteReleaseState:
@@ -85,9 +88,11 @@ class NnmClubPlugin:
             response = await ctx.http.request("GET", target.canonical_url)
         except TransportError as error:
             raise _transport_error(error) from error
-        _status(response.status_code)
+        _validate_response(response)
         try:
-            parsed = parse_topic_page(response.text, target.canonical_url, topic_id)
+            parsed = parse_topic_page(
+                decode_topic_page(response.body, response.headers), target.canonical_url, topic_id
+            )
         except NnmClubAuthenticationRequired as error:
             raise TrackerPluginError(
                 PluginErrorCode.AUTH_REQUIRED, "NNM-Club session is required."
@@ -117,11 +122,25 @@ class NnmClubPlugin:
             response = await ctx.http.request("GET", state.download_ref)
         except TransportError as error:
             raise _transport_error(error) from error
-        _status(response.status_code)
+        _validate_response(response)
         return response.body
 
 
-def _status(status: int) -> None:
+def _is_challenge(response: TransportResponse) -> bool:
+    return response.headers.get("cf-mitigated", "").lower() == "challenge" or (
+        response.status_code in {200, 403, 503}
+        and b"/cdn-cgi/challenge-platform/" in response.body
+        and b"_cf_chl_opt" in response.body
+    )
+
+
+def _validate_response(response: TransportResponse) -> None:
+    if _is_challenge(response):
+        raise TrackerPluginError(
+            PluginErrorCode.TRACKER_UNAVAILABLE,
+            "NNM-Club access is blocked by a challenge; session validity is unknown.",
+        )
+    status = response.status_code
     if status in {401, 403}:
         raise TrackerPluginError(PluginErrorCode.AUTH_REQUIRED, "NNM-Club session is required.")
     if status == 404:

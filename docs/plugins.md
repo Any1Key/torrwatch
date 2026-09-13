@@ -14,6 +14,38 @@ HTTP нормализуются). Search, index, profile и произвольн
 download references остаются в manifest-declared hosts. Они не реализуют
 search, crawl, account login flow или CAPTCHA bypass.
 
+### NNM-Club 1.0.1: реальная forum-разметка
+
+Плагин декодирует Windows-1251/UTF-8 по HTTP charset или HTML meta, без
+замены повреждённых символов. Заголовок берётся из `a.maintitle`, чей URL
+указывает на запрошенную тему. Ссылка `download.php?id=<attachment-id>`
+содержит ID вложения, не ID темы. Поддержка прежней `topic-title`/`dl.php?t=`
+разметки сохранена для регрессии. Неоднозначные ссылки отклоняются, одинаковые
+дубли объединяются; из download reference исключаются session/query secrets.
+HTTP/DNS/redirect/TLS policy по-прежнему принадлежит shared transport.
+
+Предварительный `version_key` включает нормализованную ссылку на вложение,
+название и доступные source markers. Если достоверной даты нет, timestamp
+остаётся `None`. Изменение алгоритма может вызвать одну повторную проверку
+торрента после обновления; только точный infohash решает, создавать ли release.
+Прежняя периодическая forced verification обнаруживает изменения при том же ID.
+
+Распознанный Cloudflare challenge классифицируется как `TRACKER_UNAVAILABLE`
+с сообщением о блокировке, а не как доказательство истёкшей авторизации.
+Отдельного нового состояния БД нет; применяется существующий bounded retry.
+Плагин не запускает браузер/антибот-провайдер и не обходит challenge.
+Страница входа по-прежнему даёт `AUTH_REQUIRED`.
+
+Fixture `nnmclub/forum-topic.html` создана вручную по техническим признакам
+одной разрешённой live-проверки, с синтетическими текстом и ID. Тесты передают
+её в плагин как CP1251 bytes и проверяют общий baseline/change pipeline offline.
+
+Live acceptance 2026-09-13: один разрешённый запрос через Direct с сохранённой
+encrypted сессией дал HTTP 200; plugin.check вернул корректную кириллицу,
+download reference и version key. Torrent download/delivery в этой диагностике
+не выполнялись; состояние монитора и cookies не перезаписывались. Проверки:
+140 offline tests passed, coverage 81.19%, Ruff/format/mypy PASS, Docker build PASS.
+
 ## Контракт
 
 Реализация удовлетворяет typed `TrackerPlugin` contract из

@@ -93,6 +93,13 @@ redirects не следуются, TLS certificate verification обязател
 
 ## Phase 7 tracker plugins
 
+NNM-Club 1.0.1 принимает download references только известных forum endpoints
+на declared NNM hosts, с единственным положительным ID. Session/query fields
+не переносятся в нормализованную ссылку или version key. Декодирование страницы
+ограничено UTF-8 и Windows-1251; некорректные bytes дают безопасную parse error.
+Распознанный Cloudflare challenge не доказывает истечение cookie и не вызывает
+обход защиты: используется существующий TRACKER_UNAVAILABLE/bounded retry.
+
 NNM-Club и Kinozal получают только scoped `PluginContext`. Их domains declared
 в manifest становятся transport allowlist; redirect и DNS revalidation,
 encrypted isolated cookie sessions, selected proxy fail-closed behavior, TLS,

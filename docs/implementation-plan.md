@@ -218,6 +218,12 @@ release notes. Критерий: все v1 acceptance-тесты и quality gate
 до загрузки реальных release; очередь и модели Фазы 1 — до delivery в Фазе 6.
 ## Release fix: административный UX v1 (не Phase 11)
 
+Последующий release fix NNM-Club: подтвердить реальные title/download/charset
+структуры; исправить только plugin parser/response classification; проверить
+offline CP1251, безопасные ссылки, общий baseline и same-infohash pipeline;
+запустить quality gates, собрать Docker и проверить один live page check
+без torrent download/delivery. Новых фаз, схем и зависимостей нет.
+
 Исправляется непроходимый browser onboarding: shell, пустые состояния,
 формы существующих clients/proxies/notifications/sessions, привязка monitor,
 enqueue-only действия и readable system status. Без изменения схемы, tracker

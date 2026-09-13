@@ -47,6 +47,12 @@ def _torrent() -> bytes:
         (
             "nnmclub",
             "https://nnmclub.to/forum/viewtopic.php?t=23456",
+            "https://nnmclub.to/forum/download.php?id=98765",
+            "nnmclub/forum-topic.html",
+        ),
+        (
+            "nnmclub",
+            "https://nnmclub.to/forum/viewtopic.php?t=23456",
             "https://nnmclub.to/forum/dl.php?t=23456",
             "nnmclub/topic.html",
         ),
@@ -68,9 +74,10 @@ async def test_phase7_plugins_reuse_baseline_and_authoritative_change_pipeline(
         monitor = MonitorRepository(database).create(
             name=plugin_id, url=url, plugin_id=plugin_id, next_check_at=now_utc()
         )
-        transport = FixtureTransport(
-            url, download_url, (FIXTURES / fixture).read_bytes(), _torrent(), []
-        )
+        page = (FIXTURES / fixture).read_bytes()
+        if fixture == "nnmclub/forum-topic.html":
+            page = page.decode("utf-8").encode("cp1251")
+        transport = FixtureTransport(url, download_url, page, _torrent(), [])
         checks = MonitorCheckService(
             database,
             settings,  # type: ignore[arg-type]

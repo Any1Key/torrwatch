@@ -23,6 +23,11 @@ All notable changes to TorrWatch are documented here.
   CLI, encrypted-state-aware backup, plugin inventory and acceptance coverage.
 ## Unreleased — исправление интерфейса v1
 
+- NNM-Club 1.0.1: исправлены Windows-1251, заголовок `a.maintitle` и
+  `download.php?id=` с отдельным ID вложения; Cloudflare challenge больше не
+  выдаётся за истёкшую сессию. Добавлены независимые offline-регрессии.
+  Схема БД, маршрутизация и механизмы доставки не изменены.
+
 - Добавлены onboarding, постоянная навигация, локальный адаптивный дизайн,
   понятные пустые состояния и формы существующих подключений.
 - Browser setup связывает monitor с клиентом, прокси и зашифрованной сессией;

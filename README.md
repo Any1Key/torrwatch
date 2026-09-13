@@ -57,6 +57,11 @@ supported operational commands. Backup excludes the master key unless
 `--include-master-key` is explicit; without that key encrypted credentials and
 sessions cannot be recovered. v1 has no search, crawling, VPN, media catalog or
 CAPTCHA-bypass subsystem.
+
+NNM-Club plugin 1.0.1 поддерживает forum-страницы Windows-1251 и ссылки
+вложений `download.php?id=…`. Для доступа нужна действующая импортированная
+сессия с User-Agent; Cloudflare challenge может по-прежнему блокировать запрос.
+Подробнее: [плагины](docs/plugins.md#nnm-club-101-реальная-forum-разметка).
 # Настройка через веб-интерфейс
 
 После входа выполните шаги на странице обзора: **торрент-клиент → сессия
