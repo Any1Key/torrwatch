@@ -22,7 +22,7 @@ from torrwatch.db.models import (
     TorrentClient,
     WorkerHeartbeat,
 )
-from torrwatch.domain.enums import JobStatus, MonitorStatus
+from torrwatch.domain.enums import InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.services.jobs import MIN_CHECK_INTERVAL_SECONDS, JobRepository, now_utc
 from torrwatch.trackers.registry import PluginRegistry
 from torrwatch.trackers.types import TrackerPluginError
@@ -146,6 +146,7 @@ class AdminService:
                 canonical_url=target.canonical_url,
                 plugin_id=plugin.manifest.id,
                 external_tracker_id=target.external_id,
+                initial_sync_mode=InitialSyncMode.BASELINE_AND_DELIVERY,
                 check_interval_seconds=interval_seconds,
                 next_check_at=now_utc(),
                 current_status=MonitorStatus.HEALTHY,

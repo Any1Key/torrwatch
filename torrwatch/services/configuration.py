@@ -20,6 +20,7 @@ from torrwatch.db.models import (
     TrackerSession,
 )
 from torrwatch.domain.enums import (
+    InitialSyncMode,
     MonitorStatus,
     NotificationChannelType,
     NotificationStatus,
@@ -209,7 +210,13 @@ class ConfigurationService:
                 storage_path = s.get(StoragePath, int(values["storage_path"]))
                 if storage_path is None or not storage_path.enabled:
                     raise ValueError("storage_path")
-            item = s.get(MonitorItem, ident) if ident else MonitorItem(next_check_at=now_utc())
+            item = (
+                s.get(MonitorItem, ident)
+                if ident
+                else MonitorItem(
+                    next_check_at=now_utc(), initial_sync_mode=InitialSyncMode.BASELINE_AND_DELIVERY
+                )
+            )
             if item is None:
                 raise ValueError("monitor")
             if ident and item.canonical_url != target.canonical_url:
