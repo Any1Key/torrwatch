@@ -550,6 +550,7 @@ def system(request: Request) -> HTMLResponse:
         web_ready=request.app.state.ready,
         notifications=svc.admin.resource("notification-jobs"),
         events=svc.admin.events()[:10],
+        timezone=_canonical_timezone(_setting(request, "timezone")),
         debug_mode=_setting(request, "debug_mode") == "true",
         passwordless_login=_setting(request, "passwordless_login") == "true",
     )
@@ -560,13 +561,19 @@ def _setting(request: Request, key: str) -> str | None:
         return session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
 
 
+def _canonical_timezone(value: str | None) -> str:
+    choices = ("Europe/Moscow", "UTC", "Europe/Berlin", "Asia/Almaty")
+    raw = (value or "Europe/Moscow").strip()
+    return next((choice for choice in choices if choice.lower() == raw.lower()), "Europe/Moscow")
+
+
 @router.post("/system/settings")
 async def system_settings(request: Request) -> RedirectResponse:
     data = await request.form()
     require_csrf(request, str(data.get("csrf", "")))
     from zoneinfo import ZoneInfo
 
-    timezone = str(data.get("timezone", "Europe/Moscow"))
+    timezone = _canonical_timezone(str(data.get("timezone", "Europe/Moscow")))
     try:
         ZoneInfo(timezone)
     except Exception:
@@ -583,7 +590,7 @@ async def system_settings(request: Request) -> RedirectResponse:
             if row is None:
                 session.add(SystemSetting(key=key, value=str(value).lower()))
             else:
-                row.value = str(value).lower()
+                row.value = value if key == "timezone" else str(value).lower()
     import logging
 
     logging.getLogger().setLevel(logging.DEBUG if debug else logging.INFO)
