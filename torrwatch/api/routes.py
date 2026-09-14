@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -9,15 +10,17 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from torrwatch.core.security import (
+    SESSION_EXPIRES_KEY,
     USER_SESSION_KEY,
     csrf_token,
     require_admin,
     require_csrf,
     verify_password,
 )
-from torrwatch.db.models import User
+from torrwatch.db.models import SystemSetting, User
 from torrwatch.services.admin import AdminService, AdminValidationError
 
 router = APIRouter()
@@ -76,12 +79,37 @@ def login_form(request: Request) -> HTMLResponse:
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
 def login(
-    request: Request, username: str = Form(), password: str = Form(), csrf: str = Form()
+    request: Request,
+    username: str = Form(),
+    password: str = Form(""),
+    csrf: str = Form(),
+    remember: bool = Form(False),
 ) -> Response:
     require_csrf(request, csrf)
     with request.app.state.database.session() as database_session:
         user = database_session.query(User).filter(User.username == username).one_or_none()
-        if user is None or user.disabled or not verify_password(user.password_hash, password):
+        with request.app.state.database.session() as setting_session:
+            passwordless = (
+                setting_session.scalar(
+                    select(SystemSetting.value).where(SystemSetting.key == "passwordless_login")
+                )
+                == "true"
+            )
+        local = request.client is not None and request.client.host in {
+            "127.0.0.1",
+            "::1",
+            "localhost",
+        }
+        valid_password = (
+            passwordless
+            and local
+            or (
+                bool(password)
+                and user is not None
+                and verify_password(user.password_hash, password)
+            )
+        )
+        if user is None or user.disabled or not valid_password:
             return templates.TemplateResponse(
                 request=request,
                 name="login.html",
@@ -89,6 +117,8 @@ def login(
                 status_code=401,
             )
         request.session[USER_SESSION_KEY] = user.id
+        lifetime = timedelta(days=30) if remember else timedelta(hours=12)
+        request.session[SESSION_EXPIRES_KEY] = (datetime.now(UTC) + lifetime).isoformat()
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -129,7 +159,7 @@ def new_monitor_page(request: Request, user: User = Depends(require_admin)) -> H
 @router.post("/monitors", include_in_schema=False)
 def create_monitor_page(
     request: Request,
-    name: str = Form(),
+    name: str = Form(""),
     url: str = Form(),
     interval_seconds: int = Form(1800),
     csrf: str = Form(),
@@ -212,7 +242,7 @@ def resource_page(page: str, request: Request, user: User = Depends(require_admi
 
 
 class MonitorCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
+    name: str = Field(default="", max_length=255)
     url: str = Field(min_length=1, max_length=4096)
     interval_seconds: int = Field(default=1800, ge=300)
 

@@ -229,3 +229,9 @@ offline CP1251, безопасные ссылки, общий baseline и same-i
 enqueue-only действия и readable system status. Без изменения схемы, tracker
 логики или worker semantics. Acceptance: offline browser integration tests,
 Ruff/format/mypy/pytest ≥80%, Docker build и authenticated UI smoke.
+
+Дополнительный UX-релизный фикс: именованные `storage_paths` добавлены
+миграцией `20260914_0007`; monitor выбирает путь из списка, а имя новой
+раздачи заполняется заголовком remote release после первой успешной проверки.
+В `/system` доступны безопасный debug-флаг, выгрузка санитизированных событий,
+локально ограниченный passwordless login и 30-дневный `remember me`.

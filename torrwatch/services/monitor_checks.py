@@ -364,6 +364,11 @@ class MonitorCheckService:
             monitor.plugin_id = plugin_id
             monitor.canonical_url = canonical_url
             monitor.external_tracker_id = external_id
+            # New monitors use a generated placeholder; replace it with the
+            # authoritative tracker title once the page has been checked.
+            generated_suffix = f"#{external_id}" if external_id else "#monitor"
+            if monitor.name.endswith(generated_suffix) and remote.title.strip():
+                monitor.name = remote.title.strip()[:255]
             monitor.current_release_id = release.id
             monitor.current_infohash_v1 = metadata.infohash_v1
             monitor.current_infohash_v2 = metadata.infohash_v2

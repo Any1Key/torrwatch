@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
@@ -14,7 +14,7 @@ from torrwatch.api.routes import templates
 from torrwatch.clients.types import TorrentClientError
 from torrwatch.core.secrets import SecretBox, SecretKeyError
 from torrwatch.core.security import csrf_token, require_admin, require_csrf
-from torrwatch.db.models import MonitorItem, ProxyProfile, TorrentClient
+from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient
 from torrwatch.notifications.types import NotificationError
 from torrwatch.services.admin import AdminService
 from torrwatch.services.configuration import ConfigurationService
@@ -38,6 +38,11 @@ SECTIONS = {
         "Добавить прокси",
         "Настройте маршрут к трекеру. Без профиля используется прямое соединение.",
     ),
+    "paths": (
+        "Пути хранения",
+        "Добавить путь",
+        "Сохраните именованные каталоги, чтобы выбирать их при создании монитора.",
+    ),
     "notifications": (
         "Уведомления",
         "Добавить уведомление",
@@ -46,6 +51,11 @@ SECTIONS = {
 }
 # key, label, input kind, help. Sensitive values are never echoed into forms.
 FIELDS = {
+    "paths": [
+        ("name", "Название", "text", "Например: Сериалы"),
+        ("path", "Путь", "text", "Абсолютный путь на стороне торрент-клиента."),
+        ("enabled", "Включён", "checkbox", ""),
+    ],
     "clients": [
         ("name", "Название", "text", "Например: домашний Transmission"),
         ("type", "Тип", "select:QBITTORRENT,TRANSMISSION", ""),
@@ -139,7 +149,12 @@ FIELDS = {
         ),
     ],
     "monitors": [
-        ("name", "Название", "text", "Удобное вам название раздачи."),
+        (
+            "name",
+            "Название (автоматически)",
+            "text",
+            "Будет взято из заголовка страницы трекера после первой проверки.",
+        ),
         ("url", "URL раздачи", "url", "Конкретная тема или раздача поддерживаемого трекера."),
         (
             "interval_seconds",
@@ -158,6 +173,12 @@ FIELDS = {
             "Торрент-клиент",
             "clients",
             "Необязательно. Первый check создаёт только baseline, без доставки.",
+        ),
+        (
+            "storage_path",
+            "Путь хранения",
+            "paths",
+            "Необязательно. Выберите именованный путь для загрузки.",
         ),
         ("proxy", "Прокси", "proxies", "Необязательно; без профиля — Direct."),
         ("enabled", "Включён", "checkbox", ""),
@@ -233,6 +254,7 @@ def trackers(request: Request) -> RedirectResponse:
     return RedirectResponse("/settings/sessions", status_code=303)
 
 
+@router.get("/paths")
 @router.get("/clients")
 @router.get("/proxies")
 @router.get("/notifications")
@@ -287,6 +309,14 @@ def form(
                         "interval_seconds": str(row.check_interval_seconds),
                         "client": str(row.torrent_client_id or ""),
                         "proxy": str(row.proxy_override_id or ""),
+                        "storage_path": next(
+                            (
+                                str(path["id"])
+                                for path in svc.admin.resource("paths")
+                                if path["path"] == row.client_save_path
+                            ),
+                            "",
+                        ),
                         "session": "shared" if row.tracker_account_id == 1 else "monitor",
                         "enabled": "on" if row.enabled else "",
                         "paused": "on" if row.paused else "",
@@ -327,6 +357,7 @@ def form(
         plugins=svc.admin.trackers(),
         clients=svc.admin.resource("clients"),
         proxies=svc.admin.resource("proxies"),
+        paths=svc.admin.resource("paths"),
         status_code=422 if error else 200,
     )
 
@@ -501,7 +532,44 @@ def system(request: Request) -> HTMLResponse:
         web_ready=request.app.state.ready,
         notifications=svc.admin.resource("notification-jobs"),
         events=svc.admin.events()[:10],
+        debug_mode=_setting(request, "debug_mode") == "true",
+        passwordless_login=_setting(request, "passwordless_login") == "true",
     )
+
+
+def _setting(request: Request, key: str) -> str | None:
+    with request.app.state.database.session() as session:
+        return session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
+
+
+@router.post("/system/settings")
+async def system_settings(request: Request) -> RedirectResponse:
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    debug = data.get("debug_mode") == "on"
+    passwordless = data.get("passwordless_login") == "on"
+    with request.app.state.database.session() as session:
+        for key, value in (("debug_mode", debug), ("passwordless_login", passwordless)):
+            row = session.get(SystemSetting, key)
+            if row is None:
+                session.add(SystemSetting(key=key, value=str(value).lower()))
+            else:
+                row.value = str(value).lower()
+    import logging
+
+    logging.getLogger().setLevel(logging.DEBUG if debug else logging.INFO)
+    return redirect(request, "/system", "Настройки системы сохранены.")
+
+
+@router.get("/system/logs")
+def logs(request: Request) -> PlainTextResponse:
+    """Download a sanitized event log for copy/save by an administrator."""
+    lines = []
+    for event in service(request).admin.events():
+        lines.append(
+            f"{event['created_at']} [{event['level']}] {event['code']}: {event['message']}"
+        )
+    return PlainTextResponse("\n".join(lines) + ("\n" if lines else ""))
 
 
 @router.get("/events")

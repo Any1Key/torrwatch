@@ -13,13 +13,14 @@ from torrwatch.db.models import (
     MonitorItem,
     NotificationChannel,
     NotificationJob,
+    StoragePath,
     TorrentClient,
     TrackerSession,
 )
 
 
 @pytest.mark.parametrize(
-    "resource", ["clients", "sessions", "proxies", "notifications", "monitors"]
+    "resource", ["clients", "sessions", "proxies", "notifications", "paths", "monitors"]
 )
 def test_setup_forms_require_auth_csrf_and_explain_fields(
     client: TestClient, resource: str
@@ -43,6 +44,7 @@ def test_fresh_dashboard_empty_states_and_static_assets(client: TestClient) -> N
         "/configure/sessions",
         "/monitors/new",
         "/configure/notifications",
+        "/configure/paths",
     ):
         assert path in home
     for path in (
@@ -177,6 +179,39 @@ def test_browser_complete_setup_and_durable_check(
     )
     with db.session() as s:
         assert s.get(MonitorItem, 1).tracker_account_id is None
+
+
+def test_named_storage_path_and_automatic_monitor_name(client: TestClient) -> None:
+    token = _login(client)
+    response = client.post(
+        "/configure/paths",
+        data={
+            "csrf": token,
+            "name": "Сериалы",
+            "path": "/volume1/Download/complete/Serials",
+            "enabled": "on",
+        },
+    )
+    assert response.status_code == 200
+    response = client.post(
+        "/configure/monitors",
+        data={
+            "csrf": token,
+            "name": "",
+            "url": "https://rutracker.org/forum/viewtopic.php?t=98765",
+            "interval_seconds": "1800",
+            "client": "",
+            "storage_path": "1",
+            "session": "shared",
+            "enabled": "on",
+        },
+    )
+    assert response.status_code == 200
+    with client.app.state.database.session() as session:
+        monitor = session.query(MonitorItem).order_by(MonitorItem.id.desc()).first()
+        path = session.get(StoragePath, 1)
+        assert monitor is not None and monitor.name.startswith("RuTracker #")
+        assert path is not None and monitor.client_save_path == path.path
 
 
 @pytest.mark.parametrize("kind", ["TELEGRAM", "WEBHOOK"])

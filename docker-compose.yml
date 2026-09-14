@@ -5,7 +5,7 @@ services:
     command: ["torrwatch-web"]
     env_file: ${TORRWATCH_ENV_FILE:-.env}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "172.16.60.98:8080:8080"
     volumes:
       - ./data:/data
     restart: unless-stopped

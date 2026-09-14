@@ -10,6 +10,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
 from torrwatch.api.routes import router
@@ -18,6 +19,7 @@ from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.db.bootstrap import bootstrap_admin
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
+from torrwatch.db.models import SystemSetting
 from torrwatch.trackers.loader import load_plugin_registry
 from torrwatch.web.admin import router as browser_router
 
@@ -35,6 +37,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             ensure_runtime_files(active_settings)
             upgrade_database(active_settings)
+            with database.session() as session:
+                debug = (
+                    session.scalar(
+                        select(SystemSetting.value).where(SystemSetting.key == "debug_mode")
+                    )
+                    == "true"
+                )
+            logging.getLogger().setLevel(
+                logging.DEBUG
+                if debug
+                else getattr(logging, active_settings.log_level.upper(), logging.INFO)
+            )
             bootstrap_admin(database, active_settings)
             app.state.plugin_registry = load_plugin_registry(active_settings)
             app.state.ready = True

@@ -15,6 +15,7 @@ from torrwatch.db.models import (
     NotificationChannel,
     NotificationJob,
     ProxyProfile,
+    StoragePath,
     TorrentClient,
     TrackerSession,
 )
@@ -76,6 +77,17 @@ class ConfigurationService:
             )
             return 1
         with self.db.session() as s:
+            if resource == "paths":
+                path = values.get("path", "").strip()
+                if not path.startswith("/") or "\x00" in path or "\n" in path or "\r" in path:
+                    raise ValueError("path")
+                row = s.get(StoragePath, ident) if ident else StoragePath()
+                if row is None:
+                    raise ValueError("path")
+                row.name, row.path, row.enabled = name, path, values.get("enabled") == "on"
+                s.add(row)
+                s.flush()
+                return row.id
             if resource == "clients":
                 kind = TorrentClientType(values["type"])
                 endpoint = validate_admin_endpoint(values["url"])
@@ -178,7 +190,7 @@ class ConfigurationService:
     def save_monitor(self, values: dict[str, str], ident: int | None = None) -> int:
         name = values.get("name", "").strip()
         interval = int(values.get("interval_seconds", "1800"))
-        if not name or len(name) > 255:
+        if len(name) > 255:
             raise ValueError("name")
         if interval < 300:
             raise ValueError("interval_seconds")
@@ -192,19 +204,29 @@ class ConfigurationService:
                 raise ValueError("client")
             if proxy_id and (proxy is None or not proxy.enabled):
                 raise ValueError("proxy")
+            storage_path = None
+            if values.get("storage_path"):
+                storage_path = s.get(StoragePath, int(values["storage_path"]))
+                if storage_path is None or not storage_path.enabled:
+                    raise ValueError("storage_path")
             item = s.get(MonitorItem, ident) if ident else MonitorItem(next_check_at=now_utc())
             if item is None:
                 raise ValueError("monitor")
             if ident and item.canonical_url != target.canonical_url:
                 raise ValueError("Existing target cannot change; create a new monitor.")
             item.name, item.original_url, item.canonical_url = (
-                name,
+                (
+                    item.name
+                    if ident
+                    else f"{plugin.manifest.display_name} #{target.external_id or 'monitor'}"
+                ),
                 values["url"],
                 target.canonical_url,
             )
             item.plugin_id, item.external_tracker_id = plugin.manifest.id, target.external_id
             item.check_interval_seconds = interval
             item.torrent_client_id, item.proxy_override_id = client_id, proxy_id
+            item.client_save_path = storage_path.path if storage_path else None
             if values.get("session") == "shared":
                 item.tracker_account_id = 1
             else:

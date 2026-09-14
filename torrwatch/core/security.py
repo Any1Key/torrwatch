@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import secrets
+from datetime import UTC, datetime
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
@@ -15,6 +16,7 @@ from torrwatch.db.models import User
 PASSWORD_HASHER = PasswordHasher()
 CSRF_SESSION_KEY = "csrf_token"
 USER_SESSION_KEY = "user_id"
+SESSION_EXPIRES_KEY = "session_expires_at"
 
 
 def hash_password(password: str) -> str:
@@ -50,6 +52,15 @@ def require_admin(request: Request) -> User:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
         )
+    expires = request.session.get(SESSION_EXPIRES_KEY)
+    if isinstance(expires, str):
+        try:
+            if datetime.fromisoformat(expires) < datetime.now(UTC):
+                request.session.clear()
+                raise HTTPException(status_code=401, detail="Authentication required.")
+        except ValueError:
+            request.session.clear()
+            raise HTTPException(status_code=401, detail="Authentication required.") from None
     database: Database = request.app.state.database
     with database.session() as database_session:
         user = database_session.get(User, user_id)

@@ -11,11 +11,14 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from datetime import datetime
 
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
+
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
-from torrwatch.db.models import DeliveryJob, Job
+from torrwatch.db.models import DeliveryJob, Job, SystemSetting
 from torrwatch.notifications.service import NotificationRepository, NotificationService
 from torrwatch.notifications.types import NotificationError, NotificationErrorCode
 from torrwatch.services.delivery import DeliveryRepository, DeliveryService
@@ -259,6 +262,18 @@ async def run_worker(settings: Settings) -> None:
     if settings.worker_lease_renewal_seconds >= settings.worker_job_lease_seconds:
         raise ValueError("Lease renewal interval must be shorter than the lease lifetime.")
     database = Database(settings.resolved_database_url)
+    try:
+        with database.session() as session:
+            debug = (
+                session.scalar(select(SystemSetting.value).where(SystemSetting.key == "debug_mode"))
+                == "true"
+            )
+    except OperationalError:
+        # Web startup owns migrations; a worker may briefly start before schema creation.
+        debug = False
+    logging.getLogger().setLevel(
+        logging.DEBUG if debug else getattr(logging, settings.log_level.upper(), logging.INFO)
+    )
     stop_event = asyncio.Event()
     identity = worker_identity()
     secrets = SecretBox(settings.resolved_master_key_file)

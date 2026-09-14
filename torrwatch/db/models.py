@@ -251,6 +251,20 @@ class TorrentClient(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
 
 
+class StoragePath(Base):
+    """Administrator-defined, named download destinations."""
+
+    __tablename__ = "storage_paths"
+    __table_args__ = (UniqueConstraint("name", name="uq_storage_paths_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
 class DeliveryJob(Base):
     __tablename__ = "delivery_jobs"
     __table_args__ = (

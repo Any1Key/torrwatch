@@ -17,6 +17,7 @@ from torrwatch.db.models import (
     NotificationJob,
     ProxyProfile,
     ReleaseVersion,
+    StoragePath,
     SystemSetting,
     TorrentClient,
     WorkerHeartbeat,
@@ -124,8 +125,10 @@ class AdminService:
             "consecutive_failures": item.consecutive_failures,
         }
 
-    def create_monitor(self, name: str, url: str, interval_seconds: int = 1800) -> dict[str, Any]:
-        if not name.strip() or len(name) > 255:
+    def create_monitor(
+        self, name: str = "", url: str = "", interval_seconds: int = 1800
+    ) -> dict[str, Any]:
+        if len(name) > 255:
             raise AdminValidationError("Укажите имя монитора длиной до 255 символов.")
         if interval_seconds < MIN_CHECK_INTERVAL_SECONDS:
             raise AdminValidationError(
@@ -137,7 +140,8 @@ class AdminService:
             raise AdminValidationError("URL не поддерживается доступным tracker plugin.") from error
         with self.database.session() as session:
             item = MonitorItem(
-                name=name.strip(),
+                name=name.strip()
+                or f"{plugin.manifest.display_name} #{target.external_id or 'monitor'}",
                 original_url=url.strip(),
                 canonical_url=target.canonical_url,
                 plugin_id=plugin.manifest.id,
@@ -212,6 +216,7 @@ class AdminService:
 
     def resource(self, name: str) -> list[dict[str, Any]]:
         mappings: dict[str, tuple[type[Any], tuple[str, ...]]] = {
+            "paths": (StoragePath, ("id", "name", "path", "enabled")),
             "proxies": (
                 ProxyProfile,
                 ("id", "name", "type", "host", "port", "enabled", "fallback_mode"),
