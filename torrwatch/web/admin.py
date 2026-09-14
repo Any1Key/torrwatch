@@ -164,9 +164,9 @@ FIELDS = {
         ),
         (
             "session",
-            "Сессия",
+            "Авторизация трекера",
             "select:shared,monitor",
-            "shared — импортированная сессия выбранного трекера; monitor — существующая отдельная сессия.",
+            "shared — использовать импортированные Cookie выбранного трекера; monitor — отдельная сессия монитора.",
         ),
         (
             "client",
@@ -299,6 +299,9 @@ def form(
             "session": "shared",
             "events": "UPDATE_DETECTED,DELIVERY_SUCCESS,DELIVERY_FAILED",
         }
+        enabled_clients = [row for row in svc.admin.resource("clients") if row.get("enabled")]
+        if len(enabled_clients) == 1:
+            values["client"] = str(enabled_clients[0]["id"])
         if ident is not None:
             if resource == "monitors":
                 with svc.db.session() as s:
