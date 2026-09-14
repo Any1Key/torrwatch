@@ -53,18 +53,29 @@ class AdminService:
                 select(WorkerHeartbeat).order_by(WorkerHeartbeat.heartbeat_at.desc()).limit(1)
             )
             return {
-                "total_monitors": session.scalar(select(func.count()).select_from(MonitorItem))
+                "total_monitors": session.scalar(
+                    select(func.count())
+                    .select_from(MonitorItem)
+                    .where(MonitorItem.deleted_at.is_(None))
+                )
                 or 0,
                 "active_monitors": session.scalar(
                     select(func.count())
                     .select_from(MonitorItem)
-                    .where(MonitorItem.enabled.is_(True), MonitorItem.paused.is_(False))
+                    .where(
+                        MonitorItem.deleted_at.is_(None),
+                        MonitorItem.enabled.is_(True),
+                        MonitorItem.paused.is_(False),
+                    )
                 )
                 or 0,
                 "error_monitors": session.scalar(
                     select(func.count())
                     .select_from(MonitorItem)
-                    .where(MonitorItem.current_status != MonitorStatus.HEALTHY)
+                    .where(
+                        MonitorItem.deleted_at.is_(None),
+                        MonitorItem.current_status != MonitorStatus.HEALTHY,
+                    )
                 )
                 or 0,
                 "pending_deliveries": session.scalar(
@@ -96,7 +107,11 @@ class AdminService:
         with self.database.session() as session:
             return [
                 self.monitor_dict(item)
-                for item in session.scalars(select(MonitorItem).order_by(MonitorItem.id))
+                for item in session.scalars(
+                    select(MonitorItem)
+                    .where(MonitorItem.deleted_at.is_(None))
+                    .order_by(MonitorItem.id)
+                )
             ]
 
     def monitor(self, monitor_id: int) -> dict[str, Any] | None:
@@ -174,9 +189,46 @@ class AdminService:
 
     def enqueue_check(self, monitor_id: int) -> bool:
         with self.database.session() as session:
-            if session.get(MonitorItem, monitor_id) is None:
+            if (
+                session.scalar(
+                    select(MonitorItem).where(
+                        MonitorItem.id == monitor_id, MonitorItem.deleted_at.is_(None)
+                    )
+                )
+                is None
+            ):
                 raise AdminValidationError("Монитор не найден.")
         return JobRepository(self.database).enqueue_monitor_check(monitor_id, now_utc())
+
+    def delete_monitor(self, monitor_id: int) -> bool:
+        """Archive a monitor and cancel queued checks while retaining history/artifacts."""
+        with self.database.session() as session:
+            item = session.get(MonitorItem, monitor_id)
+            if item is None or item.deleted_at is not None:
+                return False
+            item.deleted_at = now_utc()
+            item.enabled = False
+            item.paused = True
+            for job in session.scalars(
+                select(Job).where(
+                    Job.monitor_id == monitor_id,
+                    Job.status.in_((JobStatus.PENDING, JobStatus.FAILED_RETRYABLE)),
+                )
+            ):
+                job.status = JobStatus.FAILED_PERMANENT
+                job.active_key = None
+                job.completed_at = now_utc()
+            session.add(
+                Event(
+                    monitor_id=monitor_id,
+                    level="INFO",
+                    event_code="MONITOR_DELETED",
+                    message="Monitor removed from active scheduling.",
+                    details_json="{}",
+                    created_at=now_utc(),
+                )
+            )
+            return True
 
     def timeline(self, monitor_id: int) -> list[dict[str, Any]]:
         with self.database.session() as session:

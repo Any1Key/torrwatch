@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -27,6 +28,19 @@ router = APIRouter()
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "web" / "templates")
 )
+
+
+def pretty_datetime(value: str | None, timezone: str = "Europe/Moscow") -> str:
+    if not value:
+        return "—"
+    try:
+        parsed = datetime.fromisoformat(value).astimezone(ZoneInfo(timezone))
+        return parsed.strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return value
+
+
+templates.env.filters["pretty_datetime"] = pretty_datetime
 
 
 def admin_service(request: Request) -> AdminService:

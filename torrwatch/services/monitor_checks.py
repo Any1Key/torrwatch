@@ -229,7 +229,7 @@ class MonitorCheckService:
     def _load_monitor(self, monitor_id: int) -> _MonitorSnapshot:
         with self._database.session() as session:
             monitor = session.get(MonitorItem, monitor_id)
-            if monitor is None:
+            if monitor is None or monitor.deleted_at is not None:
                 raise JobExecutionFailure("Monitor no longer exists.", retryable=False)
             current = (
                 session.get(ReleaseVersion, monitor.current_release_id)

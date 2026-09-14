@@ -210,6 +210,7 @@ def render(request: Request, template: str, **values: Any) -> HTMLResponse:
             "username": require_admin(request).username,
             "path": active_path,
             "flash": request.session.pop("flash", None),
+            "timezone": _setting(request, "timezone") or "Europe/Moscow",
             **values,
         },
         status_code=status_code,
@@ -238,10 +239,11 @@ def dashboard(request: Request) -> HTMLResponse:
 def monitors(request: Request) -> HTMLResponse:
     svc = service(request)
     with svc.db.session() as s:
+        clients = {row.id: row.name for row in s.scalars(select(TorrentClient))}
         details = {
             row.id: {
                 "hash": row.current_infohash_v1 or row.current_infohash_v2,
-                "client": row.torrent_client_id,
+                "client": clients.get(row.torrent_client_id),
             }
             for row in s.scalars(select(MonitorItem))
         }
@@ -496,6 +498,15 @@ async def pause(request: Request, ident: int) -> RedirectResponse:
     )
 
 
+@router.post("/monitors/{ident}/delete")
+async def delete_monitor(request: Request, ident: int) -> RedirectResponse:
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    if not service(request).admin.delete_monitor(ident):
+        raise HTTPException(404)
+    return redirect(request, "/monitors", "Торрент удалён из активного списка. История сохранена.")
+
+
 @router.post("/notifications/{ident}/test")
 async def test_notification(request: Request, ident: int) -> RedirectResponse:
     require_csrf(request, str((await request.form()).get("csrf", "")))
@@ -546,10 +557,21 @@ def _setting(request: Request, key: str) -> str | None:
 async def system_settings(request: Request) -> RedirectResponse:
     data = await request.form()
     require_csrf(request, str(data.get("csrf", "")))
+    from zoneinfo import ZoneInfo
+
+    timezone = str(data.get("timezone", "Europe/Moscow"))
+    try:
+        ZoneInfo(timezone)
+    except Exception:
+        raise HTTPException(422, "Недопустимый часовой пояс.") from None
     debug = data.get("debug_mode") == "on"
     passwordless = data.get("passwordless_login") == "on"
     with request.app.state.database.session() as session:
-        for key, value in (("debug_mode", debug), ("passwordless_login", passwordless)):
+        for key, value in (
+            ("debug_mode", debug),
+            ("passwordless_login", passwordless),
+            ("timezone", timezone),
+        ):
             row = session.get(SystemSetting, key)
             if row is None:
                 session.add(SystemSetting(key=key, value=str(value).lower()))

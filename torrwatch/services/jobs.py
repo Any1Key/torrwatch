@@ -85,6 +85,7 @@ class MonitorRepository:
             query: Select[tuple[MonitorItem]] = (
                 select(MonitorItem)
                 .where(
+                    MonitorItem.deleted_at.is_(None),
                     MonitorItem.enabled.is_(True),
                     MonitorItem.paused.is_(False),
                     MonitorItem.next_check_at.is_not(None),

@@ -114,6 +114,7 @@ class MonitorItem(Base):
     current_infohash_v2: Mapped[str | None] = mapped_column(String(128))
     current_status: Mapped[MonitorStatus] = mapped_column(String(32), default=MonitorStatus.HEALTHY)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class ReleaseVersion(Base):
