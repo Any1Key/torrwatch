@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 
 import httpx
@@ -10,6 +11,8 @@ import httpx
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
 from torrwatch.db.models import TrackerSession
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -44,6 +47,12 @@ class SessionStore:
                     )
                 except (KeyError, TypeError) as error:
                     raise ValueError("Stored tracker session is invalid.") from error
+            logger.debug(
+                "Loaded tracker session namespace=%s cookies=%d user_agent=%s",
+                namespace,
+                len(cookies),
+                bool(stored.user_agent),
+            )
             return cookies, stored.user_agent
 
     def save(
@@ -75,6 +84,13 @@ class SessionStore:
             stored.user_agent = user_agent
             if authenticated:
                 stored.last_successful_auth_at = _now()
+        logger.debug(
+            "Saved tracker session namespace=%s cookies=%d user_agent=%s authenticated=%s",
+            namespace,
+            len(payload),
+            bool(user_agent),
+            authenticated,
+        )
 
     def import_cookie_header(
         self, namespace: str, header: str, user_agent: str | None = None

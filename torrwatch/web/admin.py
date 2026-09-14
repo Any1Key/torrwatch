@@ -138,7 +138,7 @@ FIELDS = {
         (
             "cookie",
             "Cookie",
-            "password",
+            "cookie",
             "В браузере: инструменты разработчика → Network → запрос страницы раздачи → Request Headers → Cookie. Вставьте только значение name=value; name2=value2, без слова Cookie:. Не отправляйте его в чат.",
         ),
         (
@@ -349,7 +349,11 @@ def form(
                         if client:
                             values["username"] = client.username or ""
                             values["tags"] = ",".join(json.loads(client.default_tags_json or "[]"))
-    safe = {key: values.get(key, "") for key, _, kind, _ in FIELDS[resource] if kind != "password"}
+    safe = {
+        key: values.get(key, "")
+        for key, _, kind, _ in FIELDS[resource]
+        if kind not in {"password", "cookie"}
+    }
     return render(
         request,
         "setup_form.html",
