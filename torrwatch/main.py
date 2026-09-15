@@ -8,14 +8,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
-from torrwatch.api.routes import router
+from torrwatch.api.routes import router, templates
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.runtime import ensure_runtime_files
+from torrwatch.core.security import USER_SESSION_KEY, csrf_token
 from torrwatch.db.bootstrap import bootstrap_admin
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
@@ -24,6 +26,20 @@ from torrwatch.trackers.loader import load_plugin_registry
 from torrwatch.web.admin import router as browser_router
 
 logger = logging.getLogger(__name__)
+
+
+public_router = APIRouter()
+
+
+@public_router.get("/", response_class=HTMLResponse, include_in_schema=False)
+def public_home(request: Request):
+    if isinstance(request.session.get(USER_SESSION_KEY), int):
+        return RedirectResponse("/torrents", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"csrf_token": csrf_token(request), "error": None},
+    )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -73,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         StaticFiles(directory=str(Path(__file__).parent / "web" / "static")),
         name="static",
     )
+    app.include_router(public_router)
     app.include_router(browser_router)
     app.include_router(router)
     return app

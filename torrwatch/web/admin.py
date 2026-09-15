@@ -236,6 +236,11 @@ def dashboard(request: Request) -> HTMLResponse:
 
 
 @router.get("/monitors")
+def legacy_monitors(request: Request) -> RedirectResponse:
+    return RedirectResponse("/torrents", status_code=303)
+
+
+@router.get("/torrents")
 def monitors(request: Request) -> HTMLResponse:
     svc = service(request)
     with svc.db.session() as s:
@@ -371,12 +376,12 @@ def form(
     )
 
 
-@router.get("/monitors/new")
+@router.get("/torrents/new")
 def new_monitor(request: Request) -> HTMLResponse:
     return form(request, "monitors")
 
 
-@router.get("/monitors/{ident}/edit")
+@router.get("/torrents/{ident}/edit")
 def edit_monitor(request: Request, ident: int) -> HTMLResponse:
     return form(request, "monitors", ident)
 
@@ -442,7 +447,7 @@ async def save_configuration(
             f"Не удалось сохранить. {message} Секретные поля введите заново.",
             field if field in messages else None,
         )
-    target = f"/monitors/{saved}" if resource == "monitors" else f"/settings/{resource}"
+    target = f"/torrents/{saved}" if resource == "monitors" else f"/settings/{resource}"
     return redirect(
         request,
         target,
@@ -467,7 +472,7 @@ def resolve_url(request: Request, url: str = "") -> dict[str, str | None]:
         ) from None
 
 
-@router.get("/monitors/{ident}")
+@router.get("/torrents/{ident}")
 def monitor_detail(request: Request, ident: int) -> HTMLResponse:
     svc = service(request)
     monitor = svc.admin.monitor(ident)
@@ -478,7 +483,7 @@ def monitor_detail(request: Request, ident: int) -> HTMLResponse:
     )
 
 
-@router.post("/monitors/{ident}/check")
+@router.post("/torrents/{ident}/check")
 async def check(request: Request, ident: int) -> RedirectResponse:
     require_csrf(request, str((await request.form()).get("csrf", "")))
     svc = service(request)
@@ -487,12 +492,12 @@ async def check(request: Request, ident: int) -> RedirectResponse:
     queued = svc.admin.enqueue_check(ident)
     return redirect(
         request,
-        f"/monitors/{ident}",
+        f"/torrents/{ident}",
         "Проверка поставлена в очередь." if queued else "Проверка уже в очереди или выполняется.",
     )
 
 
-@router.post("/monitors/{ident}/pause")
+@router.post("/torrents/{ident}/pause")
 async def pause(request: Request, ident: int) -> RedirectResponse:
     require_csrf(request, str((await request.form()).get("csrf", "")))
     with service(request).db.session() as s:
@@ -501,17 +506,17 @@ async def pause(request: Request, ident: int) -> RedirectResponse:
             raise HTTPException(404)
         item.paused = not item.paused
     return redirect(
-        request, "/monitors", "Расписание изменено. Уже запущенная проверка может завершиться."
+        request, "/torrents", "Расписание изменено. Уже запущенная проверка может завершиться."
     )
 
 
-@router.post("/monitors/{ident}/delete")
+@router.post("/torrents/{ident}/delete")
 async def delete_monitor(request: Request, ident: int) -> RedirectResponse:
     data = await request.form()
     require_csrf(request, str(data.get("csrf", "")))
     if not service(request).admin.delete_monitor(ident):
         raise HTTPException(404)
-    return redirect(request, "/monitors", "Торрент удалён из активного списка. История сохранена.")
+    return redirect(request, "/torrents", "Торрент удалён из активного списка. История сохранена.")
 
 
 @router.post("/notifications/{ident}/test")

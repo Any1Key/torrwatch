@@ -16,6 +16,6 @@
 <small id="help-{{ key }}">{{ help }}</small>{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}</div>
 {% endfor %}
 {% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
-<footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/monitors' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
+<footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
 </form>
 {% endblock %}
