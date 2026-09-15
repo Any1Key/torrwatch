@@ -223,6 +223,7 @@ def redirect(request: Request, url: str, message: str) -> RedirectResponse:
 
 
 @router.get("/")
+@router.get("/dashboard")
 def dashboard(request: Request) -> HTMLResponse:
     svc = service(request)
     return render(

@@ -34,7 +34,7 @@ public_router = APIRouter()
 @public_router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def public_home(request: Request):
     if isinstance(request.session.get(USER_SESSION_KEY), int):
-        return RedirectResponse("/torrents", status_code=303)
+        return RedirectResponse("/dashboard", status_code=303)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
