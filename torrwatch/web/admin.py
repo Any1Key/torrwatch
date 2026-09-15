@@ -13,8 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from torrwatch.api.routes import templates
 from torrwatch.clients.types import TorrentClientError
 from torrwatch.core.secrets import SecretBox, SecretKeyError
-from torrwatch.core.security import csrf_token, require_admin, require_csrf
-from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient
+from torrwatch.core.security import csrf_token, hash_password, require_admin, require_csrf
+from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient, User
 from torrwatch.notifications.types import NotificationError
 from torrwatch.services.admin import AdminService
 from torrwatch.services.configuration import ConfigurationService
@@ -531,6 +531,25 @@ async def test_notification(request: Request, ident: int) -> RedirectResponse:
         "/notifications",
         "Тестовое уведомление поставлено в очередь. Результат показан в истории отправок.",
     )
+
+
+@router.post("/system/password")
+async def change_password(request: Request) -> RedirectResponse:
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    password = str(data.get("password", ""))
+    confirmation = str(data.get("password_confirmation", ""))
+    if len(password) < 6:
+        return redirect(request, "/system", "Пароль должен содержать минимум 6 символов.")
+    if password != confirmation:
+        return redirect(request, "/system", "Пароли не совпадают.")
+    user = require_admin(request)
+    with request.app.state.database.session() as session:
+        row = session.get(User, user.id)
+        if row is None:
+            raise HTTPException(404)
+        row.password_hash = hash_password(password)
+    return redirect(request, "/system", "Пароль администратора изменён.")
 
 
 @router.get("/system")
