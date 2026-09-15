@@ -57,6 +57,14 @@ class ConfigurationService:
                     stored.get(f"{item['id']}:account:1")
                     and stored[f"{item['id']}:account:1"].encrypted_cookies
                 ),
+                "status": (
+                    "Не настроена"
+                    if not (
+                        stored.get(f"{item['id']}:account:1")
+                        and stored[f"{item['id']}:account:1"].encrypted_cookies
+                    )
+                    else ("Ошибка" if latest_errors.get(item["id"]) else "Готова к проверке")
+                ),
             }
             for item in self.admin.trackers()
         ]
