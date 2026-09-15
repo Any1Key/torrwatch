@@ -234,10 +234,7 @@ class ConfigurationService:
             item.check_interval_seconds = interval
             item.torrent_client_id, item.proxy_override_id = client_id, proxy_id
             item.client_save_path = storage_path.path if storage_path else None
-            if values.get("session", "shared") == "shared":
-                item.tracker_account_id = 1
-            else:
-                item.tracker_account_id = None
+            item.tracker_account_id = 1
             item.enabled = values.get("enabled") == "on"
             item.paused = values.get("paused") == "on"
             if not ident:

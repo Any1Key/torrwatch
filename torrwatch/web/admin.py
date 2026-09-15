@@ -322,7 +322,6 @@ def form(
                             ),
                             "",
                         ),
-                        "session": "shared" if row.tracker_account_id == 1 else "monitor",
                         "enabled": "on" if row.enabled else "",
                         "paused": "on" if row.paused else "",
                     }

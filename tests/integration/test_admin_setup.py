@@ -173,12 +173,12 @@ def test_browser_complete_setup_and_durable_check(
     assert (
         client.post(
             "/configure/monitors/1",
-            data={"csrf": token, "enabled": "on", **values, "session": "monitor"},
+            data={"csrf": token, "enabled": "on", **values},
         ).status_code
         == 200
     )
     with db.session() as s:
-        assert s.get(MonitorItem, 1).tracker_account_id is None
+        assert s.get(MonitorItem, 1).tracker_account_id == 1
 
 
 def test_named_storage_path_and_automatic_monitor_name(client: TestClient) -> None:

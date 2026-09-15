@@ -222,9 +222,7 @@ class MonitorCheckService:
 
     @staticmethod
     def _session_namespace(plugin_id: str, snapshot: _MonitorSnapshot) -> str:
-        if snapshot.tracker_account_id is not None:
-            return f"{plugin_id}:account:{snapshot.tracker_account_id}"
-        return f"{plugin_id}:monitor:{snapshot.id}"
+        return f"{plugin_id}:account:{snapshot.tracker_account_id or 1}"
 
     def _load_monitor(self, monitor_id: int) -> _MonitorSnapshot:
         with self._database.session() as session:
