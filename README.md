@@ -30,7 +30,7 @@ Phase 8 adds encrypted Telegram and generic webhook notification channels with
 durable bounded retries; notification failures never roll back releases or
 torrent-client delivery.
 Phase 9 adds an authenticated server-rendered administrative UI and versioned
-REST API. Dashboard, monitors/timeline, configured integrations, events,
+REST API. Dashboard, torrents, configured integrations, events,
 settings and system status use the same application service. “Check now” only
 queues durable work; it never contacts a tracker in the HTTP request.
 
@@ -38,9 +38,9 @@ queues durable work; it never contacts a tracker in the HTTP request.
 
 1. Create a private runtime configuration: `cp .env.example .env`.
 2. Replace `TORRWATCH_ADMIN_PASSWORD` with a unique password of at least
-   12 characters. Do not commit `.env`.
+   6 characters. Do not commit `.env`.
 3. Run `docker compose up --build`.
-4. Open `http://127.0.0.1:8080/login` and sign in with the configured
+4. Open `http://127.0.0.1:8080/` and sign in with the configured
    administrator name.
 
 Persistent state is stored in `./data`. The application generates its master

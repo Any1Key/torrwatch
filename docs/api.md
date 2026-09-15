@@ -9,7 +9,7 @@
 ## Phase 9 REST API
 
 FastAPI generates OpenAPI for the authenticated `/api/v1/` surface. Read
-resources include `/monitors`, `/trackers`, `/proxies`, `/clients`,
+browser resources include `/torrents` (legacy `/monitors` redirects), `/trackers`, `/proxies`, `/clients`,
 `/notifications`, `/events` and `/system`; tracker accounts remain an empty
 v1 placeholder until account configuration is introduced. `POST`/`PUT`
 mutations require the session-bound `X-CSRF-Token` header.
@@ -21,8 +21,8 @@ configuration is write-only and is absent from all read serialization.
 
 `GET/POST /configure/{clients|proxies|notifications|sessions}` открывает/сохраняет
 форму; `/{id}` редактирует существующее подключение (кроме sessions).
-`/monitors/new` и `/monitors/{id}/edit` используют `POST /configure/monitors[/id]`.
+`/torrents/new` и `/torrents/{id}/edit` используют `POST /configure/monitors[/id]`.
 `GET /resolve-url` выполняет только локальное registry resolution.
-`POST /monitors/{id}/check`, `/monitors/{id}/pause`, `/notifications/{id}/test`
+`POST /torrents/{id}/check`, `/torrents/{id}/pause`, `/notifications/{id}/test`
 требуют form CSRF. Check и notification test ставятся в существующие очереди.
 Все маршруты требуют admin session; secrets не возвращаются.
