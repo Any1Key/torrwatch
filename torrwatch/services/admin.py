@@ -84,6 +84,18 @@ class AdminService:
                     .where(DeliveryJob.status.in_(("PENDING", "RUNNING", "FAILED_RETRYABLE")))
                 )
                 or 0,
+                "pending_checks": session.scalar(
+                    select(func.count())
+                    .select_from(Job)
+                    .where(Job.status.in_(("PENDING", "RUNNING", "FAILED_RETRYABLE")))
+                )
+                or 0,
+                "pending_notifications": session.scalar(
+                    select(func.count())
+                    .select_from(NotificationJob)
+                    .where(NotificationJob.status.in_(("PENDING", "RUNNING", "FAILED_RETRYABLE")))
+                )
+                or 0,
                 "updates_24h": session.scalar(
                     select(func.count())
                     .select_from(ReleaseVersion)
@@ -113,6 +125,16 @@ class AdminService:
                     .order_by(MonitorItem.id)
                 )
             ]
+
+    def retry_delivery(self, delivery_id: int) -> bool:
+        with self.database.session() as session:
+            job = session.get(DeliveryJob, delivery_id)
+            if job is None or getattr(job.status, "value", str(job.status)) != "FAILED_RETRYABLE":
+                return False
+            job.status = "PENDING"
+            job.next_attempt_at = now_utc()
+            job.last_error = None
+            return True
 
     def monitor(self, monitor_id: int) -> dict[str, Any] | None:
         with self.database.session() as session:

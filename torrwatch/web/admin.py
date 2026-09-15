@@ -513,6 +513,15 @@ async def delete_monitor(request: Request, ident: int) -> RedirectResponse:
     return redirect(request, "/torrents", "Торрент удалён из активного списка. История сохранена.")
 
 
+@router.post("/deliveries/{ident}/retry")
+async def retry_delivery(request: Request, ident: int) -> RedirectResponse:
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    if not service(request).admin.retry_delivery(ident):
+        raise HTTPException(404)
+    return redirect(request, "/system", "Повторная доставка поставлена в очередь.")
+
+
 @router.post("/notifications/{ident}/test")
 async def test_notification(request: Request, ident: int) -> RedirectResponse:
     require_csrf(request, str((await request.form()).get("csrf", "")))
