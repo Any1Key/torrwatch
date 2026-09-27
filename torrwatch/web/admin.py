@@ -80,6 +80,12 @@ def download_extension() -> StreamingResponse:
 def integrations(request: Request) -> HTMLResponse:
     """Show installed and planned external integrations."""
     return render(request, "integrations.html")
+
+
+@router.get("/help", response_class=HTMLResponse)
+def help_page(request: Request) -> HTMLResponse:
+    """Show the built-in TorrWatch setup and operations guide."""
+    return render(request, "help.html")
 # key, label, input kind, help. Sensitive values are never echoed into forms.
 FIELDS = {
     "paths": [
