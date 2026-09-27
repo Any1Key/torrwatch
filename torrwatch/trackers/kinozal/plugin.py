@@ -31,7 +31,7 @@ class KinozalPlugin:
         version="1.0.0",
         plugin_api_version=PLUGIN_API_VERSION,
         core_min_version="0.1.0",
-        domains=("kinozal.tv", "dl.kinozal.tv"),
+        domains=("kinozal.tv", "dl.kinozal.tv", "kinozal.guru", "dl.kinozal.guru"),
         auth_modes=(AuthenticationMode.COOKIE,),
         capabilities=(PluginCapability.CHECK, PluginCapability.DOWNLOAD),
     )
@@ -42,6 +42,10 @@ class KinozalPlugin:
         if parsed.scheme not in {"http", "https"} or parsed.hostname not in {
             "kinozal.tv",
             "www.kinozal.tv",
+            "kinozal.guru",
+            "www.kinozal.guru",
+            "dl.kinozal.tv",
+            "dl.kinozal.guru",
         }:
             return None
         if parsed.path.rstrip("/") != "/details.php":
@@ -66,14 +70,14 @@ class KinozalPlugin:
             raise TrackerPluginError(
                 PluginErrorCode.INVALID_TARGET, "Unsupported Kinozal release URL."
             )
-        return urlunsplit(("https", "kinozal.tv", "/details.php", f"id={release_id}", ""))
+        return urlunsplit(("https", "dl.kinozal.guru", "/details.php", f"id={release_id}", ""))
 
     def extract_external_id(self, url: str) -> str | None:
         return self._release_id(url)
 
     async def test_auth(self, ctx: PluginContext) -> PluginHealth:
         try:
-            response = await ctx.http.request("GET", "https://kinozal.tv/")
+            response = await ctx.http.request("GET", "https://dl.kinozal.guru/")
         except TransportError:
             return PluginHealth(False, message="Kinozal is temporarily unavailable.")
         return PluginHealth(response.status_code < 500, response.status_code in {401, 403})

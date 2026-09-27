@@ -1,4 +1,4 @@
-const SUPPORTED = new Set(["nnmclub.to", "rutracker.org", "kinozal.tv"]);
+const SUPPORTED = new Set(["nnmclub.to", "rutracker.org", "kinozal.tv", "kinozal.guru"]);
 const COOKIE_ALLOWLIST = {
   "nnmclub.to": new Set(["phpbb2mysql_4_data", "phpbb2mysql_4_sid", "cf_clearance"])
 };

@@ -11,7 +11,9 @@
     "https://rutracker.org/*",
     "https://*.rutracker.org/*",
     "https://kinozal.tv/*",
-    "https://*.kinozal.tv/*"
+    "https://*.kinozal.tv/*",
+    "https://kinozal.guru/*",
+    "https://*.kinozal.guru/*"
   ],
   "action": {
     "default_title": "Импортировать сессию TorrWatch",
