@@ -92,6 +92,17 @@ async function importSession() {
         return cookieDomain === normalisedDomain || cookieDomain.endsWith(`.${normalisedDomain}`);
       }));
     } catch {}
+    // Final fallback for browsers that expose the active tab and cookies in
+    // different stores. The result is filtered locally before any value is
+    // sent to TorrWatch.
+    try {
+      const allBrowserCookies = await chrome.cookies.getAll({});
+      const normalisedDomain = domain.replace(/^\./, "");
+      cookieSets.push(allBrowserCookies.filter((cookie) => {
+        const cookieDomain = String(cookie.domain || "").toLowerCase().replace(/^\./, "");
+        return cookieDomain === normalisedDomain || cookieDomain.endsWith(`.${normalisedDomain}`);
+      }));
+    } catch {}
     const allCookies = [...new Map(cookieSets.flat().map((cookie) => [`${cookie.name}|${cookie.domain}|${cookie.path}`, cookie])).values()];
     const cookies = allowedCookies ? allCookies.filter((cookie) => allowedCookies.has(cookie.name)) : allCookies;
     if (!cookies.length) throw new Error("В текущей вкладке нет нужных Cookie трекера.");
