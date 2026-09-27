@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TorrWatch Session Import",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Передача активной сессии трекера в TorrWatch",
   "permissions": ["cookies", "activeTab", "storage", "permissions"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],

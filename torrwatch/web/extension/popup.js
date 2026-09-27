@@ -55,12 +55,14 @@ async function importSession() {
     if (!hasPermission && !(await chrome.permissions.request({ origins: [permission] }))) throw new Error("Разрешите расширению доступ к адресу TorrWatch.");
 
     const allowedCookies = COOKIE_ALLOWLIST[domain];
-    const cookieUrls = [...new Set([parsed.href, `https://${domain}/`, `https://www.${domain}/`])];
-    const partitionKeys = [...new Set([`https://${parsed.hostname}`, `https://${domain}`, `https://www.${domain}`])].map((topLevelSite) => ({ topLevelSite }));
+    const cookieHosts = domain === "kinozal.guru"
+      ? ["kinozal.guru", "www.kinozal.guru", "dl.kinozal.guru"]
+      : [domain, `www.${domain}`];
+    const cookieUrls = [...new Set([parsed.href, ...cookieHosts.map((host) => `https://${host}/`)])];
+    const partitionKeys = [...new Set([`https://${parsed.hostname}`, ...cookieHosts.map((host) => `https://${host}`)])].map((topLevelSite) => ({ topLevelSite }));
     const cookieQueries = [
       ...cookieUrls.map((url) => ({ url })),
-      { domain },
-      { domain: `.${domain}` },
+      ...cookieHosts.flatMap((host) => [{ domain: host }, { domain: `.${host}` }]),
       ...cookieUrls.flatMap((url) => partitionKeys.map((partitionKey) => ({ url, partitionKey })))
     ];
     const cookieSets = await Promise.all(cookieQueries.map(async (query) => {
@@ -74,11 +76,13 @@ async function importSession() {
       const missing = [...allowedCookies].filter((name) => !found.has(name));
       if (missing.length) throw new Error(`Не найдены Cookie: ${missing.join(", ")}. Откройте NNM-Club в авторизованной вкладке и обновите страницу.`);
       setStatus(`Найдены Cookie: ${[...found].join(", ")}. Передаю…`);
+    } else {
+      setStatus(`Найдено Cookie Kinozal: ${cookies.length}. Передаю…`);
     }
     const response = await fetch(`${base}/session-import/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-TorrWatch-Extension": "0.1.0" },
-      body: JSON.stringify({ token, domain, source_url: parsed.href, user_agent: navigator.userAgent, cookies: cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, path: cookie.path, secure: cookie.secure, http_only: cookie.httpOnly, expiration_date: cookie.expirationDate || null })) })
+      body: JSON.stringify({ token, domain, source_url: parsed.href, user_agent: navigator.userAgent, cookies: cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, domain: cookie.domain, path: cookie.path, secure: cookie.secure, http_only: cookie.httpOnly, expiration_date: cookie.expirationDate || null })) })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || `Сервер ответил HTTP ${response.status}.`);
