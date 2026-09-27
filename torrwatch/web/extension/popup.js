@@ -31,7 +31,7 @@ async function inspectTab() {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Откройте страницу поддерживаемого HTTPS-трекера.");
   if (!domain) throw new Error("Текущий домен не поддерживается.");
   site.textContent = `Трекер: ${domain}`;
-  return { parsed, domain };
+  return { parsed, domain, tab };
 }
 
 async function loadSettings() {
@@ -44,7 +44,7 @@ async function importSession() {
   importButton.disabled = true;
   setStatus("Получаю данные текущего трекера…");
   try {
-    const { parsed, domain } = await inspectTab();
+    const { parsed, domain, tab } = await inspectTab();
     const token = pairingToken.value.trim();
     const base = serverUrl.value.trim().replace(/\/+$/, "");
     if (!token) throw new Error("Введите одноразовый код из TorrWatch.");
@@ -60,14 +60,26 @@ async function importSession() {
       : [domain, `www.${domain}`];
     const cookieUrls = [...new Set([parsed.href, ...cookieHosts.map((host) => `https://${host}/`)])];
     const partitionKeys = [...new Set([`https://${parsed.hostname}`, ...cookieHosts.map((host) => `https://${host}`)])].map((topLevelSite) => ({ topLevelSite }));
+    const store = tab.cookieStoreId ? { storeId: tab.cookieStoreId } : {};
     const cookieQueries = [
       ...cookieUrls.map((url) => ({ url })),
       ...cookieHosts.flatMap((host) => [{ domain: host }, { domain: `.${host}` }]),
       ...cookieUrls.flatMap((url) => partitionKeys.map((partitionKey) => ({ url, partitionKey })))
-    ];
+    ].map((query) => ({ ...query, ...store }));
     const cookieSets = await Promise.all(cookieQueries.map(async (query) => {
       try { return await chrome.cookies.getAll(query); } catch { return []; }
     }));
+    // Some Chromium builds omit host-only cookies from domain/url queries when
+    // the active tab uses a separate cookie store. Read the store once more
+    // and keep only cookies belonging to the active tracker domain.
+    try {
+      const storeCookies = await chrome.cookies.getAll(store);
+      const normalisedDomain = domain.replace(/^\./, "");
+      cookieSets.push(storeCookies.filter((cookie) => {
+        const cookieDomain = String(cookie.domain || "").toLowerCase().replace(/^\./, "");
+        return cookieDomain === normalisedDomain || cookieDomain.endsWith(`.${normalisedDomain}`);
+      }));
+    } catch {}
     const allCookies = [...new Map(cookieSets.flat().map((cookie) => [`${cookie.name}|${cookie.domain}|${cookie.path}`, cookie])).values()];
     const cookies = allowedCookies ? allCookies.filter((cookie) => allowedCookies.has(cookie.name)) : allCookies;
     if (!cookies.length) throw new Error("В текущей вкладке нет нужных Cookie трекера.");
