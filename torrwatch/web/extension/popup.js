@@ -2,6 +2,7 @@ const SUPPORTED = new Set(["nnmclub.to", "rutracker.org", "kinozal.tv", "kinozal
 const COOKIE_ALLOWLIST = {
   "nnmclub.to": new Set(["phpbb2mysql_4_data", "phpbb2mysql_4_sid", "cf_clearance"])
 };
+const KINOZAL_COOKIE_NAMES = ["uid", "pass", "cf_clearance"];
 const serverUrl = document.querySelector("#serverUrl");
 const pairingToken = document.querySelector("#pairingToken");
 const importButton = document.querySelector("#importButton");
@@ -66,6 +67,17 @@ async function importSession() {
       ...cookieHosts.flatMap((host) => [{ domain: host }, { domain: `.${host}` }]),
       ...cookieUrls.flatMap((url) => partitionKeys.map((partitionKey) => ({ url, partitionKey })))
     ].map((query) => ({ ...query, ...store }));
+    if (domain === "kinozal.guru") {
+      cookieQueries.push(
+        ...KINOZAL_COOKIE_NAMES.flatMap((name) => [
+          ...cookieUrls.map((url) => ({ name, url, ...store })),
+          ...cookieHosts.flatMap((host) => [
+            { name, domain: host, ...store },
+            { name, domain: `.${host}`, ...store }
+          ])
+        ])
+      );
+    }
     const cookieSets = await Promise.all(cookieQueries.map(async (query) => {
       try { return await chrome.cookies.getAll(query); } catch { return []; }
     }));
@@ -83,12 +95,18 @@ async function importSession() {
     const allCookies = [...new Map(cookieSets.flat().map((cookie) => [`${cookie.name}|${cookie.domain}|${cookie.path}`, cookie])).values()];
     const cookies = allowedCookies ? allCookies.filter((cookie) => allowedCookies.has(cookie.name)) : allCookies;
     if (!cookies.length) throw new Error("В текущей вкладке нет нужных Cookie трекера.");
+    if (domain === "kinozal.guru") {
+      const found = new Set(cookies.map((cookie) => cookie.name));
+      const missing = ["uid", "pass"].filter((name) => !found.has(name));
+      if (missing.length) throw new Error(`Не найдены Cookie Kinozal: ${missing.join(", ")}. Проверьте домен и профиль браузера.`);
+      setStatus(`Найдены Cookie Kinozal: ${[...found].join(", ")}. Передаю…`);
+    }
     if (allowedCookies) {
       const found = new Set(cookies.map((cookie) => cookie.name));
       const missing = [...allowedCookies].filter((name) => !found.has(name));
       if (missing.length) throw new Error(`Не найдены Cookie: ${missing.join(", ")}. Откройте NNM-Club в авторизованной вкладке и обновите страницу.`);
       setStatus(`Найдены Cookie: ${[...found].join(", ")}. Передаю…`);
-    } else {
+    } else if (domain !== "kinozal.guru") {
       setStatus(`Найдено Cookie Kinozal: ${cookies.length}. Передаю…`);
     }
     const response = await fetch(`${base}/session-import/complete`, {
