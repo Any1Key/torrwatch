@@ -1,76 +1,144 @@
 # TorrWatch
 
-TorrWatch is a self-hosted application for monitoring explicitly added torrent
-release URLs and safely propagating genuine torrent changes to configured
-torrent clients. Torrent search, media discovery and VPN management are not
-part of this project.
+TorrWatch — локальное веб-приложение для наблюдения за конкретными раздачами
+на торрент-трекерах. Оно проверяет страницы раздач, находит новые версии
+торрентов и передаёт их в настроенный торрент-клиент.
 
-## Current status
+Проект не выполняет поиск по трекерам, не управляет VPN и не обходит CAPTCHA.
 
-The foundation provides a FastAPI web process, a separate worker heartbeat
-process, SQLite migrations, initial administrator login and Docker Compose.
-Phase 2 adds the shared asynchronous tracker transport: encrypted isolated
-cookie sessions, Direct/HTTP/SOCKS5 proxy profiles, SSRF and redirect
-validation, bounded HTTP retry/rate limits and recursive secret redaction.
-Phase 3 adds the typed tracker-plugin framework, registry, scoped context and
-namespaced non-secret plugin state. Phase 4 adds strict local metainfo
-validation with exact v1/v2 hashes and atomic, private torrent artifact storage
-with protected release retention. Phase 5 adds the built-in RuTracker topic
-plugin and durable URL → check → validated torrent → release-history flow.
-RuTracker uses encrypted core cookie sessions (manual session import is the v1
-method); it has no standalone credential store. Phase 6 adds encrypted,
-administrator-configured qBittorrent and Transmission clients plus a durable
-delivery queue. A real later infohash change queues delivery; an initial
-baseline does not. Delivery always adds and verifies the new torrent before
-removing the old one, and never requests data deletion. Phase 7 adds NNM-Club
-and Kinozal specific-release plugins using the same encrypted sessions,
-transport, metainfo validation and delivery pipeline. Search, crawling and
-Phase 8 notifications remain out of scope.
-Phase 8 adds encrypted Telegram and generic webhook notification channels with
-durable bounded retries; notification failures never roll back releases or
-torrent-client delivery.
-Phase 9 adds an authenticated server-rendered administrative UI. Dashboard,
-torrents, configured integrations, events,
-settings and system status use the same application service. “Check now” only
-queues durable work; it never contacts a tracker in the HTTP request.
+## Быстрый старт
 
-## Quick start with Docker Compose
+### 1. Подготовить настройки
 
-1. Create a private runtime configuration: `cp .env.example .env`.
-2. Replace `TORRWATCH_ADMIN_PASSWORD` with a unique password of at least
-   6 characters. Do not commit `.env`.
-3. Run `docker compose up --build`.
-4. Open `http://127.0.0.1:8080/` and sign in with the configured
-   administrator name.
+В каталоге проекта создайте локальный файл настроек:
 
-Persistent state is stored in `./data`. The application generates its master
-key at `/data/master.key`; keep it with backups and never commit or disclose it.
+```bash
+cp .env.example .env
+```
 
-See [deployment documentation](docs/deployment.md) for reverse-proxy and
-backup notes. The full roadmap is in [the implementation plan](docs/implementation-plan.md).
+Откройте `.env` и измените как минимум:
 
-## Operations and v1 limitations
+```dotenv
+TORRWATCH_ADMIN_USERNAME=admin
+TORRWATCH_ADMIN_PASSWORD=ваш-сложный-пароль
+```
 
-`torrwatch doctor`, `torrwatch plugins list`, `torrwatch check <monitor-id>`,
-`torrwatch backup <directory>` and `torrwatch admin reset-password` are the
-supported operational commands. Backup excludes the master key unless
-`--include-master-key` is explicit; without that key encrypted credentials and
-sessions cannot be recovered. v1 has no search, crawling, VPN, media catalog or
-CAPTCHA-bypass subsystem.
+Файл `.env` нельзя добавлять в Git: в нём находятся локальные настройки.
 
-NNM-Club plugin 1.0.1 поддерживает forum-страницы Windows-1251 и ссылки
-вложений `download.php?id=…`. Для доступа нужна действующая импортированная
-сессия с User-Agent; Cloudflare challenge может по-прежнему блокировать запрос.
-Подробнее: [плагины](docs/plugins.md#nnm-club-101-реальная-forum-разметка).
-# Настройка через веб-интерфейс
+### 2. Запустить TorrWatch
 
-После входа выполните шаги на странице обзора: **торрент-клиент → сессия
-трекера → монитор → Проверить сейчас**. Уведомления необязательны.
-Подробности и ограничения: [первичная настройка](docs/admin-setup.md).
-# Администрирование
+```bash
+docker compose up -d --build
+```
 
-В разделе **Торрент-клиенты** доступна фоновая проверка подключения. Страница
-**Очереди** показывает проверки, доставки и уведомления; неудачную доставку
-можно повторить. Удаление торрента требует подтверждения: по умолчанию задача
-в клиенте остаётся, дополнительный флажок удаляет её **без скачанных файлов**.
-Подробности: [руководство администратора](docs/admin-setup.md).
+Проверить состояние контейнеров:
+
+```bash
+docker compose ps
+```
+
+Откройте в браузере `http://127.0.0.1:8080/` и войдите под указанным
+администратором.
+
+Остановить приложение можно командой:
+
+```bash
+docker compose down
+```
+
+### 3. Выполнить первоначальную настройку
+
+Рекомендуемый порядок действий в веб-интерфейсе:
+
+1. В разделе **Интеграции** добавьте торрент-клиент — Transmission или
+   qBittorrent — и проверьте подключение.
+2. Добавьте сессию нужного трекера. Для NNM-Club удобнее использовать
+   расширение браузера: войдите на сайт, создайте одноразовый код в TorrWatch,
+   передайте через расширение Cookie и User-Agent.
+3. Добавьте монитор: вставьте URL конкретной раздачи, например ссылку на тему
+   форума.
+4. Нажмите **Проверить сейчас**. Проверка выполняется worker-процессом в фоне,
+   поэтому результат появится не обязательно мгновенно.
+
+## Как это работает
+
+TorrWatch хранит монитор раздачи и периодически ставит его проверку в очередь.
+Worker получает страницу трекера, извлекает ссылку на `.torrent`, проверяет
+метаданные и хэш, а затем сохраняет новую версию в истории.
+
+При первом успешном обнаружении создаётся исходная версия. Если позже хэш
+изменится, новая версия передаётся в торрент-клиент: сначала добавляется и
+проверяется новый торрент, затем старая задача удаляется из клиента без
+удаления скачанных файлов.
+
+Кнопка **Проверить сейчас** только ставит работу в очередь. Она не выполняет
+сетевой запрос прямо во время загрузки страницы.
+
+## Интеграции
+
+В разделе **Интеграции** находятся торрент-клиенты, сессии трекеров,
+уведомления и ссылка на расширение браузера.
+
+Для Telegram нужны токен бота и Chat ID. Для webhook — адрес HTTP(S)-сервиса.
+Секретные значения хранятся в зашифрованном виде. Cookie и User-Agent NNM-Club
+нужно получать из авторизованной вкладки; Cloudflare всё равно может временно
+заблокировать автоматический запрос.
+
+Расширение можно скачать со страницы **Интеграции** и установить в браузер в
+режиме разработчика как распакованное расширение. После передачи сессии поля
+Cookie и User-Agent отображаются в форме редактирования TorrWatch.
+
+## Очереди и журнал
+
+В разделе **Очереди** отображаются фоновые проверки раздач, доставка торрентов
+в клиенты и отправка уведомлений. Ошибочную задачу можно запустить повторно.
+
+**Диагностический журнал** показывает технические события приложения. Две
+дополнительные вкладки журнала нужны для разделения обычных событий и ошибок;
+они помогают понять, на каком этапе произошла проблема, но для ежедневной
+работы открывать их постоянно не требуется.
+
+## Данные и безопасность
+
+Постоянные данные хранятся в каталоге `./data`, включая базу SQLite, журнал и
+файлы торрентов. При первом запуске создаётся ключ шифрования
+`/data/master.key`.
+
+Ключ необходимо включать в резервную копию и хранить отдельно от публичного
+репозитория. Без него зашифрованные Cookie, токены и пароли восстановить нельзя.
+Не публикуйте `.env`, Cookie, токены Telegram и содержимое `master.key`.
+
+Резервную копию можно создать встроенной командой:
+
+```bash
+docker compose exec web torrwatch backup /data/backup
+```
+
+Команда не включает ключ шифрования без явного флага
+`--include-master-key`.
+
+## Полезные команды
+
+```bash
+# Проверка конфигурации
+docker compose exec web torrwatch doctor
+
+# Список доступных плагинов трекеров
+docker compose exec web torrwatch plugins list
+
+# Поставить монитор на повторную проверку по его ID
+docker compose exec web torrwatch check <monitor-id>
+
+# Посмотреть логи worker
+docker compose logs -f worker
+```
+
+## Ограничения текущей версии
+
+- поиск, массовый обход трекеров и каталогизация медиа не входят в задачу;
+- CAPTCHA и Cloudflare challenge не обходятся автоматически;
+- проверка и доставка выполняются асинхронно через очередь;
+- начальное обнаружение торрента не считается изменением и не создаёт повторную
+  доставку;
+- для доступа к закрытым трекерам нужна действующая сессия с подходящими
+  Cookie и User-Agent.
