@@ -35,9 +35,59 @@ def validate_webhook_endpoint(value: str) -> str:
 
 
 def telegram_message(payload: dict[str, object]) -> str:
-    event = html.escape(str(payload.get("event_type", "SYSTEM_ERROR")))
-    message = html.escape(str(payload.get("message", "TorrWatch notification")))
-    return f"<b>{event}</b>\n{message}"
+    event_type = str(payload.get("event_type", "SYSTEM_ERROR"))
+    event_titles = {
+        "UPDATE_DETECTED": "🔔 Обновление раздачи",
+        "DELIVERY_SUCCESS": "✅ Торрент добавлен",
+        "DELIVERY_FAILED": "❌ Ошибка доставки",
+        "TRACKER_AUTH_FAILED": "🔐 Ошибка авторизации трекера",
+        "TRACKER_BROKEN": "⚠️ Ошибка трекера",
+        "CLIENT_UNAVAILABLE": "⚠️ Торрент-клиент недоступен",
+        "SYSTEM_ERROR": "⚠️ Системная ошибка",
+        "TEST": "🧪 Тестовое уведомление",
+    }
+    lines = [f"<b>TorrWatch · {html.escape(event_titles.get(event_type, event_type))}</b>"]
+    name = payload.get("monitor_name") or payload.get("torrent_name")
+    tracker_id = payload.get("external_tracker_id")
+    if name:
+        title = html.escape(str(name))
+        if tracker_id:
+            title += f" #{html.escape(str(tracker_id))}"
+        lines.append(f"🎬 {title}")
+    elif tracker_id:
+        lines.append(f"🎬 ID {html.escape(str(tracker_id))}")
+    for icon, label, key in (
+        ("📦", "Размер", "size_bytes"),
+        ("📁", "Файлов", "file_count"),
+        ("💾", "Клиент", "client_name"),
+        ("📂", "Путь", "client_save_path"),
+    ):
+        value = payload.get(key)
+        if value not in (None, ""):
+            if key == "size_bytes":
+                value = _format_size(value)
+            lines.append(f"{icon} {label}: {html.escape(str(value))}")
+    if payload.get("message"):
+        lines.append(f"\n{html.escape(str(payload['message']))}")
+    if payload.get("error") or payload.get("last_error"):
+        lines.append(f"\nПричина: {html.escape(str(payload.get('error') or payload.get('last_error')))}")
+    if payload.get("timestamp"):
+        lines.append(f"🕒 {html.escape(str(payload['timestamp']))}")
+    return "\n".join(lines)
+
+
+def _format_size(value: object) -> str:
+    try:
+        size = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    units = ("Б", "КБ", "МБ", "ГБ", "ТБ")
+    unit = units[0]
+    for unit in units:
+        if abs(size) < 1024 or unit == units[-1]:
+            return f"{size:.1f} {unit}" if unit != "Б" else f"{int(size)} {unit}"
+        size /= 1024
+    return str(value)
 
 
 class _HttpNotificationAdapter(NotificationChannelAdapter):
