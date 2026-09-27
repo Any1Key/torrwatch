@@ -164,6 +164,9 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_type: Mapped[JobType] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[str] = mapped_column(
+        Text, default="{}", server_default="{}", nullable=False
+    )
     monitor_id: Mapped[int | None] = mapped_column(ForeignKey("monitor_items.id"), index=True)
     status: Mapped[JobStatus] = mapped_column(String(32), nullable=False)
     active_key: Mapped[str | None] = mapped_column(String(255))
@@ -212,11 +215,27 @@ class TrackerSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     namespace: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth_status: Mapped[str] = mapped_column(
+        String(32), default="UNVERIFIED", server_default="UNVERIFIED"
+    )
+    imported_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     encrypted_cookies: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(String(512))
     last_successful_auth_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
+
+
+class SessionImportPairing(Base):
+    __tablename__ = "session_import_pairings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    plugin_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
 
 
 class PluginStateRecord(Base):

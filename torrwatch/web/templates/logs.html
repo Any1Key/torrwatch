@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <div><p class="eyebrow">ЖУРНАЛ</p><h1>Диагностический журнал</h1><p>Полные логи web и worker, ошибки, рекомендации и технические подробности.</p></div>
+  <div class="actions"><a class="button secondary" href="/logs">Обновить</a><a class="button" href="/system/logs">Скачать полный журнал</a></div>
+</header>
+<section class="card settings-card">
+  <div class="settings-card-head"><div><h2>Все записи</h2><p class="help">Режим: <strong>{{ 'подробный debug' if debug_mode else 'обычный' }}</strong>. Секреты скрываются согласно настройке системы.</p></div></div>
+  <pre class="log-page-output">{{ log_text }}</pre>
+</section>
+{% endblock %}

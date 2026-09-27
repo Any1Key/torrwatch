@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head"><h1>Удалить торрент?</h1></header>
+<section class="card">
+  <h2>{{ monitor.name }}</h2>
+  <p>Тема исчезнет из активного списка TorrWatch. Новые проверки и ожидающие доставки будут отменены. История и сохранённые torrent-файлы останутся.</p>
+  <form method="post" action="/torrents/{{ monitor.id }}/delete">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="toggle-row"><input type="checkbox" name="remove_from_client"><span>Также удалить задачу из выбранного торрент-клиента <strong>без удаления скачанных файлов</strong>. Удаляется только текущая сохранённая версия; остальные раздачи не затрагиваются.</span></label>
+    <label class="toggle-row"><input type="checkbox" name="confirm" value="yes" required><span>Подтверждаю выбранное действие.</span></label>
+    <div class="actions"><button class="danger" type="submit">Удалить</button><a class="button secondary" href="/torrents">Отмена</a></div>
+  </form>
+</section>
+{% endblock %}

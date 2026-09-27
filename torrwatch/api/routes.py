@@ -1,4 +1,4 @@
-"""Authenticated Phase 9 browser pages and versioned REST API."""
+"""Authenticated browser pages and operational endpoints."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from torrwatch.core.security import (
@@ -43,17 +42,24 @@ def pretty_datetime(value: str | None, timezone: str = "Europe/Moscow") -> str:
 templates.env.filters["pretty_datetime"] = pretty_datetime
 
 
+def filesize(value: int) -> str:
+    size = float(value)
+    for unit in ("Б", "КБ", "МБ", "ГБ", "ТБ"):
+        if size < 1024 or unit == "ТБ":
+            return f"{size:.0f} {unit}" if unit == "Б" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{value} Б"
+
+
+templates.env.filters["filesize"] = filesize
+
+
 def admin_service(request: Request) -> AdminService:
     return AdminService(request.app.state.database, request.app.state.plugin_registry)
 
 
 def page_context(request: Request, user: User, **values: Any) -> dict[str, Any]:
     return {"csrf_token": csrf_token(request), "username": user.username, **values}
-
-
-def require_api_csrf(request: Request) -> None:
-    """Require the session-bound token for JSON mutations as well as forms."""
-    require_csrf(request, request.headers.get("X-CSRF-Token", ""))
 
 
 @router.get("/health/live", include_in_schema=False)
@@ -253,99 +259,3 @@ def resource_page(page: str, request: Request, user: User = Depends(require_admi
         name="resource.html",
         context=page_context(request, user, title=_PAGES[page], rows=rows),
     )
-
-
-class MonitorCreate(BaseModel):
-    name: str = Field(default="", max_length=255)
-    url: str = Field(min_length=1, max_length=4096)
-    interval_seconds: int = Field(default=1800, ge=300)
-
-
-class MonitorUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    interval_seconds: int = Field(ge=300)
-    paused: bool = False
-
-
-@router.get("/api/v1/monitors")
-def api_monitors(request: Request, _: User = Depends(require_admin)) -> list[dict[str, Any]]:
-    return admin_service(request).monitors()
-
-
-@router.post("/api/v1/monitors", status_code=201)
-def api_create_monitor(
-    request: Request,
-    data: MonitorCreate,
-    _: User = Depends(require_admin),
-    __: None = Depends(require_api_csrf),
-) -> dict[str, Any]:
-    try:
-        return admin_service(request).create_monitor(data.name, data.url, data.interval_seconds)
-    except AdminValidationError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-
-
-@router.get("/api/v1/monitors/{monitor_id}")
-def api_monitor(
-    monitor_id: int, request: Request, _: User = Depends(require_admin)
-) -> dict[str, Any]:
-    item = admin_service(request).monitor(monitor_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Monitor not found.")
-    return item
-
-
-@router.put("/api/v1/monitors/{monitor_id}")
-def api_update_monitor(
-    monitor_id: int,
-    request: Request,
-    data: MonitorUpdate,
-    _: User = Depends(require_admin),
-    __: None = Depends(require_api_csrf),
-) -> dict[str, Any]:
-    try:
-        return admin_service(request).update_monitor(
-            monitor_id, name=data.name, interval_seconds=data.interval_seconds, paused=data.paused
-        )
-    except AdminValidationError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
-
-
-@router.post("/api/v1/monitors/{monitor_id}/check", status_code=202)
-def api_check_monitor(
-    monitor_id: int,
-    request: Request,
-    _: User = Depends(require_admin),
-    __: None = Depends(require_api_csrf),
-) -> dict[str, bool]:
-    try:
-        return {"queued": admin_service(request).enqueue_check(monitor_id)}
-    except AdminValidationError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-
-
-@router.get("/api/v1/monitors/{monitor_id}/events")
-def api_monitor_events(
-    monitor_id: int, request: Request, _: User = Depends(require_admin)
-) -> list[dict[str, Any]]:
-    return admin_service(request).timeline(monitor_id)
-
-
-@router.get("/api/v1/trackers")
-def api_trackers(request: Request, _: User = Depends(require_admin)) -> list[dict[str, Any]]:
-    return admin_service(request).trackers()
-
-
-@router.get("/api/v1/{resource}")
-def api_resource(resource: str, request: Request, _: User = Depends(require_admin)) -> Any:
-    service = admin_service(request)
-    if resource == "events":
-        return service.events()
-    if resource == "system":
-        return service.system()
-    if resource == "tracker-accounts":
-        return []
-    try:
-        return service.resource(resource)
-    except AdminValidationError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error

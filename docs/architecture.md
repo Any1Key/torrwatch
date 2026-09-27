@@ -1,5 +1,18 @@
 # Архитектура
 
+## Административные операции клиента
+
+`CLIENT_TEST` и `CLIENT_REMOVE` используют существующую `jobs`, atomic claim,
+lease renewal/recovery и остановку worker. Миграция `20260915_0009` добавляет
+несекретный JSON snapshot операции (ID клиента, endpoint и точный infohash для
+удаления), а также auth status/import timestamp в tracker sessions. HTTP только
+enqueue-ит работу; сетевые вызовы происходят без SQLite transaction. Операции
+клиента не изменяют last-check/status монитора как успешная tracker check.
+Удаление архивирует тему и отменяет ожидающие проверки/доставки в одной
+короткой write transaction; активная проверка/доставка блокирует удаление.
+Повтор удаления сначала inspect-ит клиент, отсутствие torrent — успех.
+Это расширение существующего job contract без отдельного scheduler/сервиса.
+
 На Фазе 0 TorrWatch состоит из одного Python-проекта и одного образа с двумя
 независимыми процессами:
 
@@ -189,10 +202,10 @@ outbound send выполняется после commit source state и не мо
 имеют active idempotency key, bounded retry и lease recovery. Remote acceptance
 остаётся best-effort at-least-once при response-loss.
 
-## Фаза 9: web UI и API
+## Фаза 9: web UI
 
-FastAPI обслуживает server-rendered Jinja UI и `/api/v1` поверх общего
-`AdminService`: dashboard, monitors/timeline, plugins, integrations, events,
+FastAPI обслуживает server-rendered Jinja UI поверх общего `AdminService`:
+dashboard, monitors/timeline, plugins, integrations, events,
 settings и system status. Service выполняет только короткие DB операции;
 `Check now` идемпотентно enqueue-ит существующую durable monitor job и не
 выполняет tracker/client I/O в HTTP request. Dashboard читает persisted worker

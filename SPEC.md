@@ -889,7 +889,6 @@ Core tables should include:
 - notification_channels;
 - notification_jobs or equivalent retry state;
 - events;
-- api_tokens;
 - system_settings;
 - worker_state/job locks as needed.
 
@@ -1000,38 +999,14 @@ Responsive desktop/mobile layout required. Native mobile app is not required.
 
 ---
 
-## 29. REST API
+## 29. Browser application interface
 
-Versioned under:
+TorrWatch 1.x is administered through the server-rendered web UI. A public or
+versioned REST API is intentionally out of scope. Browser actions must use the
+same application/service layer as background work and must enqueue long-running
+operations rather than perform tracker or client requests in the HTTP request.
 
-```text
-/api/v1/
-```
-
-Minimum resources:
-
-- `/monitors`;
-- `/trackers`;
-- `/tracker-accounts`;
-- `/proxies`;
-- `/clients`;
-- `/notifications`;
-- `/events`;
-- `/system`.
-
-Actions should include:
-
-- `POST /monitors/{id}/check`;
-- `POST /trackers/{id}/test`;
-- `POST /proxies/{id}/test`;
-- `POST /clients/{id}/test`;
-- `POST /notifications/{id}/test`.
-
-Manual check must enqueue work and return; it must not perform the tracker request inside the API call.
-
-OpenAPI is generated from FastAPI.
-
-Web UI and REST API must use the same application/service layer rather than duplicate business logic.
+Operational health and metrics endpoints are not an administrative API.
 
 ---
 
@@ -1051,17 +1026,6 @@ Requirements:
 - CSRF protection for state-changing browser actions.
 
 No RBAC or multi-user system required.
-
-### API tokens
-
-Administrator can create API tokens.
-
-- token shown only once;
-- only a hash is stored in DB;
-- name/description;
-- created_at;
-- last_used_at;
-- revoked_at.
 
 ---
 

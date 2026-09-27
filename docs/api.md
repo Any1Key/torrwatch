@@ -1,4 +1,4 @@
-# API
+# Operational HTTP endpoints
 
 На Фазе 0 доступны только инфраструктурные endpoint-ы:
 
@@ -6,17 +6,10 @@
 - `GET /health/ready` — миграция, bootstrap и БД готовы;
 - `GET /metrics` — совместимый с Prometheus текстовый bootstrap metric.
 
-## Phase 9 REST API
-
-FastAPI generates OpenAPI for the authenticated `/api/v1/` surface. Read
-browser resources include `/torrents` (legacy `/monitors` redirects), `/trackers`, `/proxies`, `/clients`,
-`/notifications`, `/events` and `/system`; tracker accounts remain an empty
-v1 placeholder until account configuration is introduced. `POST`/`PUT`
-mutations require the session-bound `X-CSRF-Token` header.
-
-`POST /api/v1/monitors/{id}/check` returns `202` after idempotently enqueueing
-the durable monitor check. It never performs a tracker request. Secret-bearing
-configuration is write-only and is absent from all read serialization.
+TorrWatch does not expose a public REST API or API tokens. Administration is
+performed through authenticated server-rendered pages and CSRF-protected forms.
+Long-running actions enqueue durable worker jobs and return without performing
+external tracker or client requests in the browser request.
 ## Browser configuration routes
 
 `GET/POST /configure/{clients|proxies|notifications|sessions}` открывает/сохраняет
@@ -26,3 +19,12 @@ configuration is write-only and is absent from all read serialization.
 `POST /torrents/{id}/check`, `/torrents/{id}/pause`, `/notifications/{id}/test`
 требуют form CSRF. Check и notification test ставятся в существующие очереди.
 Все маршруты требуют admin session; secrets не возвращаются.
+# Административные browser actions
+
+`POST /clients/{id}/test` (admin + form CSRF) ставит проверку подключения в
+durable очередь; `GET /queues` показывает результат и другие фоновые работы.
+`POST /deliveries/{id}/retry` повторяет неудачную доставку, не дублируя активную.
+`GET /torrents/{id}/delete` — подтверждение; одноимённый POST требует `confirm=yes`.
+`remove_from_client=on` разрешает удалить только текущую задачу клиента без данных.
+`POST /torrents/{id}/check` с `Accept: application/json` возвращает 202 и
+`{queued, message}` без redirect/flash; обычная форма сохраняет redirect fallback.

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from torrwatch.core.config import Settings
 from torrwatch.db.database import Database
-from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion
+from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion, TrackerSession
 from torrwatch.domain.enums import DeliveryStatus, InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
 from torrwatch.torrent import TorrentMetadata, TorrentStore, TorrentValidationError
@@ -102,10 +102,19 @@ class MonitorCheckService:
             state=state,
             secrets=ScopedPluginSecrets(),
         )
+        namespace = self._session_namespace(plugin.manifest.id, snapshot)
+        with self._database.session() as session:
+            saved = session.scalar(
+                select(TrackerSession).where(TrackerSession.namespace == namespace)
+            )
+            imported_at = saved.imported_at if saved else None
         try:
             remote = await plugin.check(target, context)
         except TrackerPluginError as error:
+            if error.code in (PluginErrorCode.AUTH_REQUIRED, PluginErrorCode.AUTH_FAILED):
+                self._record_auth(job.id, worker_id, namespace, imported_at, "EXPIRED")
             raise self._plugin_failure(error) from error
+        self._record_auth(job.id, worker_id, namespace, imported_at, "WORKING")
 
         forced_due = self._forced_verification_due(state)
         version_changed = remote.version_key != snapshot.current_version_key
@@ -137,6 +146,8 @@ class MonitorCheckService:
             payload = await plugin.download_torrent(target, remote, context)
             metadata = self._validate_payload(payload)
         except TrackerPluginError as error:
+            if error.code in (PluginErrorCode.AUTH_REQUIRED, PluginErrorCode.AUTH_FAILED):
+                self._record_auth(job.id, worker_id, namespace, imported_at, "EXPIRED")
             raise self._plugin_failure(error) from error
         except TorrentValidationError as error:
             raise JobExecutionFailure(
@@ -223,6 +234,20 @@ class MonitorCheckService:
     @staticmethod
     def _session_namespace(plugin_id: str, snapshot: _MonitorSnapshot) -> str:
         return f"{plugin_id}:account:{snapshot.tracker_account_id or 1}"
+
+    def _record_auth(
+        self, job_id: int, worker_id: str, namespace: str, imported_at: datetime | None, status: str
+    ) -> None:
+        with self._database.session() as session:
+            if not self._owned(session, job_id, worker_id):
+                return
+            saved = session.scalar(
+                select(TrackerSession).where(TrackerSession.namespace == namespace)
+            )
+            if saved is not None and saved.imported_at == imported_at:
+                saved.auth_status = status
+                if status == "WORKING":
+                    saved.last_successful_auth_at = now_utc()
 
     def _load_monitor(self, monitor_id: int) -> _MonitorSnapshot:
         with self._database.session() as session:
@@ -532,10 +557,25 @@ class MonitorCheckService:
             ),
         }
         retryable, status, delay, event_code = mapping[error.code]
+        recommendations = {
+            PluginErrorCode.AUTH_REQUIRED: "Проверьте Cookie: войдите на трекер в браузере и импортируйте новую сессию.",
+            PluginErrorCode.AUTH_FAILED: "Проверьте Cookie и User-Agent в разделе «Трекеры и сессии».",
+            PluginErrorCode.PROXY_ERROR: "Проверьте хост, порт и пароль прокси либо временно отключите профиль.",
+            PluginErrorCode.PLUGIN_PARSE_ERROR: "Проверьте доступность страницы и обновите плагин или fixture после изменения разметки.",
+            PluginErrorCode.TRACKER_UNAVAILABLE: "Проверьте доступность трекера, DNS и выбранный прокси.",
+            PluginErrorCode.TEMPORARY_NETWORK_ERROR: "Проверьте сеть и повторите проверку позже.",
+            PluginErrorCode.RATE_LIMITED: "Трекер ограничил частоту запросов; дождитесь следующей попытки.",
+            PluginErrorCode.INVALID_TARGET: "Откройте настройки торрента и укажите конкретную поддерживаемую страницу.",
+            PluginErrorCode.UNSUPPORTED_PAGE: "Проверьте, что URL ведёт на страницу конкретной раздачи.",
+        }
         return JobExecutionFailure(
-            str(error),
+            "Трекер отклонил Cookie. Войдите на сайт и импортируйте новую сессию в разделе «Трекеры и сессии»."
+            if error.code in (PluginErrorCode.AUTH_REQUIRED, PluginErrorCode.AUTH_FAILED)
+            else str(error),
             retryable=retryable,
             monitor_status=status,
             retry_delay_seconds=delay,
             event_code=event_code,
+            recommendation=recommendations.get(error.code),
+            technical_message=str(error),
         )

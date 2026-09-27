@@ -101,7 +101,12 @@ class SessionStore:
             if not separator or not name:
                 raise ValueError("Invalid Cookie header.")
             cookies.set(name, value)
-        self.save(namespace, cookies, user_agent, authenticated=True)
+        self.save(namespace, cookies, user_agent, authenticated=False)
+        with self.database.session() as session:
+            stored = session.query(TrackerSession).filter_by(namespace=namespace).one()
+            stored.auth_status = "UNVERIFIED"
+            stored.imported_at = _now()
+            stored.last_successful_auth_at = None
 
     def clear(self, namespace: str) -> None:
         with self.database.session() as session:
@@ -110,3 +115,4 @@ class SessionStore:
                 stored.encrypted_cookies = None
                 stored.user_agent = None
                 stored.last_successful_auth_at = None
+                stored.auth_status = "UNVERIFIED"

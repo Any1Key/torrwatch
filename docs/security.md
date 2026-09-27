@@ -1,5 +1,13 @@
 # Безопасность
 
+Административное удаление требует отдельного подтверждения и CSRF. По умолчанию
+торрент-клиент не затрагивается; опциональная worker-операция передаёт только
+`delete_data=False`. Пароль клиента не попадает в payload очереди. Изменение
+endpoint после подтверждения запрещает выполнение удаления. Проверка подключения
+использует сохранённый endpoint и общий client adapter, а не произвольный URL.
+Импорт Cookie не устанавливает last successful auth; проверенный результат
+не перезаписывает состояние более новой импортированной сессии.
+
 Пароль администратора передаётся только через bootstrap environment variable и
 сохраняется в SQLite исключительно как Argon2id hash. Сессии используют
 HttpOnly, SameSite=Lax cookie и имеют ограниченный срок жизни. Для всех
@@ -116,13 +124,12 @@ payload/error messages; webhook payload is versioned and contains sanitized
 application state only. Webhook endpoints are administrator configured HTTP(S)
 destinations with TLS verification and redirects disabled.
 
-## Phase 9 web/API boundary
+## Phase 9 web boundary
 
-Administrative pages and `/api/v1` require the existing single-admin session.
+Administrative pages require the existing single-admin session.
 The cookie remains HttpOnly and SameSite=Lax, and is Secure when HTTPS mode is
-configured. Form mutations carry the session CSRF token; JSON mutations require
-`X-CSRF-Token`. Templates and API read models omit encrypted configuration,
-passwords, tokens, cookies and Authorization values.
+configured. Form mutations carry the session CSRF token. Templates omit
+encrypted configuration, passwords, tokens, cookies and Authorization values.
 
 Manual commands are not arbitrary URL fetchers. They enqueue existing durable
 work after short transactions, so no request keeps a SQLite transaction open
@@ -136,3 +143,8 @@ short messages and never render raw tracker HTML or exception traces.
 SecretBox. Namespace общей UI-сессии `<plugin>:account:1` изолирован по plugin.
 Сохранение cookie не означает подтверждённую авторизацию. Тест уведомления
 enqueue-only; ошибки формы не показывают исключения и сторонние ответы.
+
+Debug-файлы процессов хранятся в `/data/logs` с правами `0600` и ограниченной
+ротацией. Фильтр секретов включён по умолчанию и применяется к строкам и
+traceback перед записью и повторно перед выгрузкой. Отключение фильтра доступно
+только администратору через системные настройки и может раскрыть секреты.

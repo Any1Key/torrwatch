@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Select, func, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import OperationalError
 
@@ -27,6 +28,8 @@ class JobExecutionFailure(Exception):
     monitor_status: MonitorStatus = MonitorStatus.ERROR
     retry_delay_seconds: int | None = None
     event_code: str = "CHECK_FAILED"
+    recommendation: str | None = None
+    technical_message: str | None = None
 
 
 def now_utc() -> datetime:
@@ -115,6 +118,10 @@ class JobRepository:
             .on_conflict_do_nothing(index_elements=[Job.active_key])
         )
         with self.database.session() as session:
+            session.execute(text("BEGIN IMMEDIATE"))
+            monitor = session.get(MonitorItem, monitor_id)
+            if monitor is None or monitor.deleted_at is not None:
+                return False
             result = session.execute(statement)
             if int(getattr(result, "rowcount", 0) or 0) != 1:
                 return False
@@ -190,7 +197,7 @@ class JobRepository:
                 None,
                 None,
             )
-            if job.monitor_id is not None:
+            if job.monitor_id is not None and job.job_type == JobType.MONITOR_CHECK:
                 monitor = session.get(MonitorItem, job.monitor_id)
                 if monitor is not None:
                     monitor.last_check_at = now
@@ -220,6 +227,8 @@ class JobRepository:
         monitor_status: MonitorStatus = MonitorStatus.ERROR,
         retry_delay_seconds: int | None = None,
         event_code: str = "CHECK_RETRY_SCHEDULED",
+        recommendation: str | None = None,
+        technical_message: str | None = None,
     ) -> bool:
         with self.database.session() as session:
             job = session.get(Job, job_id)
@@ -233,7 +242,7 @@ class JobRepository:
             job.next_attempt_at = now + timedelta(seconds=delay)
             job.lease_expires_at = None
             job.last_error = error
-            if job.monitor_id is not None:
+            if job.monitor_id is not None and job.job_type == JobType.MONITOR_CHECK:
                 monitor = session.get(MonitorItem, job.monitor_id)
                 if monitor is not None:
                     monitor.last_check_at = now
@@ -244,8 +253,18 @@ class JobRepository:
                         monitor_id=job.monitor_id,
                         level="WARNING",
                         event_code=event_code,
-                        message="Monitor check will be retried.",
-                        details_json="{}",
+                        message=error,
+                        details_json=json.dumps(
+                            {
+                                key: value
+                                for key, value in (
+                                    ("recommendation", recommendation),
+                                    ("technical_error", technical_message),
+                                )
+                                if value
+                            },
+                            ensure_ascii=False,
+                        ),
                         created_at=now,
                     )
                 )
@@ -260,6 +279,8 @@ class JobRepository:
         *,
         monitor_status: MonitorStatus = MonitorStatus.ERROR,
         event_code: str = "CHECK_FAILED_PERMANENT",
+        recommendation: str | None = None,
+        technical_message: str | None = None,
     ) -> bool:
         with self.database.session() as session:
             job = session.get(Job, job_id)
@@ -272,7 +293,7 @@ class JobRepository:
                 None,
                 error,
             )
-            if job.monitor_id is not None:
+            if job.monitor_id is not None and job.job_type == JobType.MONITOR_CHECK:
                 monitor = session.get(MonitorItem, job.monitor_id)
                 if monitor is not None:
                     monitor.last_check_at = now
@@ -284,8 +305,18 @@ class JobRepository:
                         monitor_id=job.monitor_id,
                         level="ERROR",
                         event_code=event_code,
-                        message="Monitor check failed permanently.",
-                        details_json="{}",
+                        message=error,
+                        details_json=json.dumps(
+                            {
+                                key: value
+                                for key, value in (
+                                    ("recommendation", recommendation),
+                                    ("technical_error", technical_message),
+                                )
+                                if value
+                            },
+                            ensure_ascii=False,
+                        ),
                         created_at=now,
                     )
                 )

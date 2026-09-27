@@ -39,4 +39,5 @@ def test_login_logout_and_csrf_protection(client: TestClient) -> None:
     assert forbidden.status_code == 403
     csrf = csrf_from(client.get("/").text)
     assert client.post("/logout", data={"csrf": csrf}, follow_redirects=False).status_code == 303
-    assert client.get("/").status_code == 401
+    assert client.get("/").status_code == 200
+    assert 'name="password"' in client.get("/").text

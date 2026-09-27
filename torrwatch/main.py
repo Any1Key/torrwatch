@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torrwatch.api.routes import router, templates
 from torrwatch.core.config import Settings, get_settings
+from torrwatch.core.logging import configure_debug_logging
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.security import USER_SESSION_KEY, csrf_token
 from torrwatch.db.bootstrap import bootstrap_admin
@@ -24,6 +25,7 @@ from torrwatch.db.migrations import upgrade_database
 from torrwatch.db.models import SystemSetting
 from torrwatch.trackers.loader import load_plugin_registry
 from torrwatch.web.admin import router as browser_router
+from torrwatch.web.admin import session_import_router
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,8 @@ logger = logging.getLogger(__name__)
 public_router = APIRouter()
 
 
-@public_router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def public_home(request: Request):
+@public_router.get("/", response_class=HTMLResponse, include_in_schema=False, response_model=None)
+def public_home(request: Request) -> HTMLResponse | RedirectResponse:
     if isinstance(request.session.get(USER_SESSION_KEY), int):
         return RedirectResponse("/dashboard", status_code=303)
     return templates.TemplateResponse(
@@ -65,6 +67,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if debug
                 else getattr(logging, active_settings.log_level.upper(), logging.INFO)
             )
+            configure_debug_logging(
+                active_settings.data_dir,
+                "web",
+                logging.DEBUG
+                if debug
+                else getattr(logging, active_settings.log_level.upper(), logging.INFO),
+                lambda: _setting_enabled(database, "debug_redact_secrets"),
+            )
             bootstrap_admin(database, active_settings)
             app.state.plugin_registry = load_plugin_registry(active_settings)
             app.state.ready = True
@@ -91,6 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(public_router)
     app.include_router(browser_router)
+    app.include_router(session_import_router)
     app.include_router(router)
     return app
 
@@ -99,6 +110,17 @@ def _session_secret(settings: Settings) -> str:
     """Use a private, persistent value without putting it in SQLite or logs."""
     ensure_runtime_files(settings)
     return settings.resolved_master_key_file.read_bytes().hex()
+
+
+def _setting_enabled(database: Database, key: str) -> bool:
+    try:
+        with database.session() as session:
+            return (
+                session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
+                != "false"
+            )
+    except Exception:
+        return True
 
 
 def run() -> None:

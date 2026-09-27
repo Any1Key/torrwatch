@@ -29,8 +29,8 @@ Phase 8 notifications remain out of scope.
 Phase 8 adds encrypted Telegram and generic webhook notification channels with
 durable bounded retries; notification failures never roll back releases or
 torrent-client delivery.
-Phase 9 adds an authenticated server-rendered administrative UI and versioned
-REST API. Dashboard, torrents, configured integrations, events,
+Phase 9 adds an authenticated server-rendered administrative UI. Dashboard,
+torrents, configured integrations, events,
 settings and system status use the same application service. “Check now” only
 queues durable work; it never contacts a tracker in the HTTP request.
 
@@ -67,3 +67,10 @@ NNM-Club plugin 1.0.1 поддерживает forum-страницы Windows-12
 После входа выполните шаги на странице обзора: **торрент-клиент → сессия
 трекера → монитор → Проверить сейчас**. Уведомления необязательны.
 Подробности и ограничения: [первичная настройка](docs/admin-setup.md).
+# Администрирование
+
+В разделе **Торрент-клиенты** доступна фоновая проверка подключения. Страница
+**Очереди** показывает проверки, доставки и уведомления; неудачную доставку
+можно повторить. Удаление торрента требует подтверждения: по умолчанию задача
+в клиенте остаётся, дополнительный флажок удаляет её **без скачанных файлов**.
+Подробности: [руководство администратора](docs/admin-setup.md).

@@ -225,7 +225,12 @@ class DeliveryService:
         with self.database.session() as session:
             release = session.get(ReleaseVersion, job.release_id)
             monitor = session.get(MonitorItem, release.monitor_id) if release else None
-            if release is None or monitor is None or not release.file_path:
+            if (
+                release is None
+                or monitor is None
+                or monitor.deleted_at is not None
+                or not release.file_path
+            ):
                 missing_artifact = True
             else:
                 previous = session.scalar(

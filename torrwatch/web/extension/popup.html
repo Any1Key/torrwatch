@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TorrWatch</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <h1>TorrWatch</h1>
+    <p class="muted">Импорт активной сессии трекера</p>
+    <label>Адрес TorrWatch<input id="serverUrl" type="url" placeholder="http://127.0.0.1:8080" autocomplete="url"></label>
+    <label>Одноразовый код<input id="pairingToken" type="text" placeholder="Вставьте код из TorrWatch" autocomplete="off" spellcheck="false"></label>
+    <div class="site" id="site">Проверка вкладки…</div>
+    <button id="importButton" type="button">Передать сессию</button>
+    <p id="status" class="status" role="status"></p>
+    <p class="warning">Cookie отправляются только после нажатия кнопки и не сохраняются расширением.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

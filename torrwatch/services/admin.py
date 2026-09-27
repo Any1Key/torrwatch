@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text, update
 
 from torrwatch.db.database import Database
 from torrwatch.db.models import (
@@ -22,7 +23,13 @@ from torrwatch.db.models import (
     TorrentClient,
     WorkerHeartbeat,
 )
-from torrwatch.domain.enums import InitialSyncMode, JobStatus, MonitorStatus
+from torrwatch.domain.enums import (
+    DeliveryStatus,
+    InitialSyncMode,
+    JobStatus,
+    JobType,
+    MonitorStatus,
+)
 from torrwatch.services.jobs import MIN_CHECK_INTERVAL_SECONDS, JobRepository, now_utc
 from torrwatch.trackers.registry import PluginRegistry
 from torrwatch.trackers.types import TrackerPluginError
@@ -118,7 +125,7 @@ class AdminService:
     def monitors(self) -> list[dict[str, Any]]:
         with self.database.session() as session:
             return [
-                self.monitor_dict(item)
+                self._monitor_dict_with_context(session, item)
                 for item in session.scalars(
                     select(MonitorItem)
                     .where(MonitorItem.deleted_at.is_(None))
@@ -128,10 +135,30 @@ class AdminService:
 
     def retry_delivery(self, delivery_id: int) -> bool:
         with self.database.session() as session:
+            session.execute(text("BEGIN IMMEDIATE"))
             job = session.get(DeliveryJob, delivery_id)
-            if job is None or getattr(job.status, "value", str(job.status)) != "FAILED_RETRYABLE":
+            if job is None or job.status not in (
+                DeliveryStatus.FAILED_RETRYABLE,
+                DeliveryStatus.FAILED_PERMANENT,
+            ):
                 return False
-            job.status = "PENDING"
+            release = session.get(ReleaseVersion, job.release_id)
+            monitor = session.get(MonitorItem, release.monitor_id) if release else None
+            client = session.get(TorrentClient, job.client_id)
+            if monitor is None or monitor.deleted_at or client is None or not client.enabled:
+                return False
+            key = f"delivery:{job.release_id}:{job.client_id}"
+            if session.scalar(
+                select(DeliveryJob.id).where(
+                    DeliveryJob.active_key == key, DeliveryJob.id != job.id
+                )
+            ):
+                return False
+            job.status = DeliveryStatus.PENDING
+            job.active_key = key
+            job.completed_at = None
+            job.worker_id = None
+            job.lease_expires_at = None
             job.next_attempt_at = now_utc()
             job.last_error = None
             return True
@@ -139,7 +166,60 @@ class AdminService:
     def monitor(self, monitor_id: int) -> dict[str, Any] | None:
         with self.database.session() as session:
             item = session.get(MonitorItem, monitor_id)
-            return self.monitor_dict(item) if item else None
+            return self._monitor_dict_with_context(session, item) if item else None
+
+    def _monitor_dict_with_context(self, session: Any, item: MonitorItem) -> dict[str, Any]:
+        result = self.monitor_dict(item)
+        release = (
+            session.get(ReleaseVersion, item.current_release_id)
+            if item.current_release_id
+            else None
+        )
+        client = (
+            session.get(TorrentClient, item.torrent_client_id) if item.torrent_client_id else None
+        )
+        delivery = session.scalar(
+            select(DeliveryJob)
+            .join(ReleaseVersion, DeliveryJob.release_id == ReleaseVersion.id)
+            .where(ReleaseVersion.monitor_id == item.id)
+            .order_by(DeliveryJob.created_at.desc(), DeliveryJob.id.desc())
+            .limit(1)
+        )
+        last_problem = session.scalar(
+            select(Event)
+            .where(Event.monitor_id == item.id, Event.level.in_(("WARNING", "ERROR", "CRITICAL")))
+            .order_by(Event.created_at.desc(), Event.id.desc())
+            .limit(1)
+        )
+        problem_details: dict[str, Any] = {}
+        if last_problem is not None:
+            try:
+                loaded = json.loads(last_problem.details_json)
+                if isinstance(loaded, dict):
+                    problem_details = loaded
+            except (TypeError, json.JSONDecodeError):
+                problem_details = {}
+        result.update(
+            {
+                "client_name": client.name if client else None,
+                "client_enabled": client.enabled if client else None,
+                "client_save_path": item.client_save_path,
+                "initial_sync_mode": str(item.initial_sync_mode),
+                "infohash_v1": item.current_infohash_v1,
+                "infohash_v2": item.current_infohash_v2,
+                "release_name": release.torrent_name if release else None,
+                "release_size": release.total_size if release else None,
+                "release_files": release.file_count if release else None,
+                "release_detected_at": _timestamp(release.detected_at) if release else None,
+                "delivery_status": str(delivery.status) if delivery else None,
+                "delivery_error": delivery.last_error if delivery else None,
+                "last_problem": last_problem.message if last_problem else None,
+                "last_recommendation": problem_details.get("recommendation")
+                or (self._event_recommendation(last_problem.event_code) if last_problem else None),
+                "last_technical_error": problem_details.get("technical_error"),
+            }
+        )
+        return result
 
     @staticmethod
     def monitor_dict(item: MonitorItem) -> dict[str, Any]:
@@ -222,18 +302,116 @@ class AdminService:
                 raise AdminValidationError("Монитор не найден.")
         return JobRepository(self.database).enqueue_monitor_check(monitor_id, now_utc())
 
-    def delete_monitor(self, monitor_id: int) -> bool:
+    def force_check(self, monitor_id: int) -> bool:
+        """Run a manual check now, even when an automatic retry is scheduled."""
+        if self.enqueue_check(monitor_id):
+            return True
+        now = now_utc()
+        with self.database.session() as session:
+            session.execute(text("BEGIN IMMEDIATE"))
+            job = session.scalar(
+                select(Job)
+                .where(
+                    Job.monitor_id == monitor_id,
+                    Job.job_type == JobType.MONITOR_CHECK,
+                    Job.status.in_((JobStatus.PENDING, JobStatus.FAILED_RETRYABLE)),
+                )
+                .order_by(Job.id.desc())
+            )
+            if job is None:
+                return False
+            job.status = JobStatus.PENDING
+            job.attempts = 0
+            job.next_attempt_at = now
+            job.last_error = None
+            job.worker_id = None
+            job.lease_expires_at = None
+            job.completed_at = None
+            monitor = session.get(MonitorItem, monitor_id)
+            if monitor is not None:
+                monitor.next_check_at = now
+            return True
+
+    def delete_monitor(self, monitor_id: int, *, remove_from_client: bool = False) -> bool:
         """Archive a monitor and cancel queued checks while retaining history/artifacts."""
         with self.database.session() as session:
+            session.execute(text("BEGIN IMMEDIATE"))
             item = session.get(MonitorItem, monitor_id)
             if item is None or item.deleted_at is not None:
                 return False
+            releases = select(ReleaseVersion.id).where(ReleaseVersion.monitor_id == monitor_id)
+            if session.scalar(
+                select(Job.id).where(Job.monitor_id == monitor_id, Job.status == JobStatus.RUNNING)
+            ) or session.scalar(
+                select(DeliveryJob.id).where(
+                    DeliveryJob.release_id.in_(releases),
+                    DeliveryJob.status == DeliveryStatus.RUNNING,
+                )
+            ):
+                raise AdminValidationError(
+                    "Дождитесь завершения текущей проверки или доставки и повторите удаление."
+                )
+            if remove_from_client:
+                identity = item.current_infohash_v1 or item.current_infohash_v2
+                if not identity or not item.torrent_client_id:
+                    raise AdminValidationError(
+                        "Нет подтверждённой версии или выбранного клиента для удаления."
+                    )
+                client = session.get(TorrentClient, item.torrent_client_id)
+                if client is None or not client.enabled:
+                    raise AdminValidationError(
+                        "Клиент выключен или недоступен. Проверьте настройки."
+                    )
+                if session.scalar(
+                    select(MonitorItem.id).where(
+                        MonitorItem.id != item.id,
+                        MonitorItem.deleted_at.is_(None),
+                        MonitorItem.torrent_client_id == item.torrent_client_id,
+                        (MonitorItem.current_infohash_v1 == identity)
+                        | (MonitorItem.current_infohash_v2 == identity),
+                    )
+                ):
+                    raise AdminValidationError(
+                        "Эту раздачу использует другой торрент TorrWatch. Можно удалить только из списка."
+                    )
+                session.add(
+                    Job(
+                        job_type=JobType.CLIENT_REMOVE,
+                        monitor_id=monitor_id,
+                        payload_json=json.dumps(
+                            {
+                                "client_id": item.torrent_client_id,
+                                "infohash": identity,
+                                "endpoint": client.base_url,
+                            }
+                        ),
+                        status=JobStatus.PENDING,
+                        active_key=f"client-remove:{monitor_id}",
+                        next_attempt_at=now_utc(),
+                    )
+                )
+            session.execute(
+                update(DeliveryJob)
+                .where(
+                    DeliveryJob.release_id.in_(releases),
+                    DeliveryJob.status.in_(
+                        (DeliveryStatus.PENDING, DeliveryStatus.FAILED_RETRYABLE)
+                    ),
+                )
+                .values(
+                    status=DeliveryStatus.FAILED_PERMANENT,
+                    active_key=None,
+                    completed_at=now_utc(),
+                    last_error="Торрент удалён из TorrWatch; доставка отменена.",
+                )
+            )
             item.deleted_at = now_utc()
             item.enabled = False
             item.paused = True
             for job in session.scalars(
                 select(Job).where(
                     Job.monitor_id == monitor_id,
+                    Job.job_type == JobType.MONITOR_CHECK,
                     Job.status.in_((JobStatus.PENDING, JobStatus.FAILED_RETRYABLE)),
                 )
             ):
@@ -267,10 +445,39 @@ class AdminService:
                     "code": event.event_code,
                     "level": event.level,
                     "message": event.message,
+                    "details": self._event_details(event),
                     "created_at": _timestamp(event.created_at),
                 }
                 for event in events
             ]
+
+    @staticmethod
+    def _safe_event_details(raw: str) -> dict[str, Any]:
+        try:
+            value = json.loads(raw)
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _event_recommendation(code: str) -> str | None:
+        """Provide guidance for legacy events without structured details."""
+        return {
+            "TRACKER_UNAVAILABLE": "Проверьте доступность трекера, Cookie и User-Agent. При HTTP 403 импортируйте свежую сессию в разделе «Трекеры и сессии».",
+            "AUTH_REQUIRED": "Войдите на трекер в браузере и импортируйте свежие Cookie.",
+            "AUTH_FAILED": "Проверьте Cookie и User-Agent в разделе «Трекеры и сессии».",
+            "PROXY_ERROR": "Проверьте адрес, порт и авторизацию прокси либо отключите прокси-профиль.",
+            "TEMPORARY_NETWORK_ERROR": "Проверьте DNS и сетевой доступ контейнера к трекеру, затем повторите проверку.",
+            "RATE_LIMITED": "Слишком много запросов. Подождите и увеличьте интервал проверок.",
+        }.get(code)
+
+    def _event_details(self, event: Event) -> dict[str, Any]:
+        details = self._safe_event_details(event.details_json)
+        if not details.get("recommendation"):
+            recommendation = self._event_recommendation(event.event_code)
+            if recommendation:
+                details["recommendation"] = recommendation
+        return details
 
     def events(self) -> list[dict[str, Any]]:
         with self.database.session() as session:
@@ -282,6 +489,7 @@ class AdminService:
                     "code": event.event_code,
                     "level": event.level,
                     "message": event.message,
+                    "details": self._event_details(event),
                     "created_at": _timestamp(event.created_at),
                 }
                 for event in session.scalars(
@@ -289,8 +497,38 @@ class AdminService:
                 )
             ]
 
+    def filtered_events(
+        self, *, monitor_id: int | None = None, level: str = "", query: str = ""
+    ) -> list[dict[str, Any]]:
+        rows = self.events()
+        normalized_level = level.strip().upper()
+        needle = query.strip().casefold()
+        return [
+            row
+            for row in rows
+            if (monitor_id is None or row["monitor_id"] == monitor_id)
+            and (not normalized_level or row["level"] == normalized_level)
+            and (
+                not needle
+                or needle in row["message"].casefold()
+                or needle in row["code"].casefold()
+            )
+        ]
+
     def resource(self, name: str) -> list[dict[str, Any]]:
         mappings: dict[str, tuple[type[Any], tuple[str, ...]]] = {
+            "jobs": (
+                Job,
+                (
+                    "id",
+                    "job_type",
+                    "monitor_id",
+                    "status",
+                    "attempts",
+                    "next_attempt_at",
+                    "last_error",
+                ),
+            ),
             "paths": (StoragePath, ("id", "name", "path", "enabled")),
             "proxies": (
                 ProxyProfile,

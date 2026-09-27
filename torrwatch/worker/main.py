@@ -15,12 +15,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
 from torrwatch.core.config import Settings, get_settings
+from torrwatch.core.logging import configure_debug_logging
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
 from torrwatch.db.models import DeliveryJob, Job, SystemSetting
+from torrwatch.domain.enums import JobType
 from torrwatch.notifications.service import NotificationRepository, NotificationService
 from torrwatch.notifications.types import NotificationError, NotificationErrorCode
+from torrwatch.services.admin_jobs import AdminJobService
 from torrwatch.services.delivery import DeliveryRepository, DeliveryService
 from torrwatch.services.jobs import (
     JobExecutionFailure,
@@ -68,6 +71,15 @@ async def execute_claimed_job(
     try:
         await handler_task
     except JobExecutionFailure as error:
+        recommendation = f" Рекомендация: {error.recommendation}" if error.recommendation else ""
+        logger.error(
+            "Проверка задачи %s завершилась ошибкой: %s.%s",
+            job.id,
+            error.message,
+            recommendation,
+        )
+        if error.technical_message:
+            logger.debug("Техническая ошибка задачи %s: %s", job.id, error.technical_message)
         if owns_job:
             if error.retryable:
                 jobs.fail_retryable(
@@ -78,6 +90,8 @@ async def execute_claimed_job(
                     monitor_status=error.monitor_status,
                     retry_delay_seconds=error.retry_delay_seconds,
                     event_code=error.event_code,
+                    recommendation=error.recommendation,
+                    technical_message=error.technical_message,
                 )
             else:
                 jobs.fail_permanent(
@@ -87,9 +101,17 @@ async def execute_claimed_job(
                     now_utc(),
                     monitor_status=error.monitor_status,
                     event_code=error.event_code,
+                    recommendation=error.recommendation,
+                    technical_message=error.technical_message,
                 )
         return False
     except Exception as error:
+        logger.error(
+            "Непредвиденная ошибка фоновой задачи %s: %s. Проверьте журнал событий и настройки подключения.",
+            job.id,
+            error,
+        )
+        logger.debug("Полная трассировка фоновой задачи %s", job.id, exc_info=True)
         if owns_job:
             jobs.fail_retryable(job.id, worker_id, str(error), now_utc())
         return False
@@ -121,6 +143,12 @@ async def execute_claimed_delivery(
     try:
         completed = await delivery_task
     except Exception as error:
+        logger.error(
+            "Ошибка доставки задачи %s: %s. Проверьте торрент-клиент, путь сохранения и его доступность.",
+            job.id,
+            error,
+        )
+        logger.debug("Полная трассировка доставки задачи %s", job.id, exc_info=True)
         if owns_job:
             deliveries.fail(job.id, worker_id, str(error), retryable=True)
         return False
@@ -274,6 +302,12 @@ async def run_worker(settings: Settings) -> None:
     logging.getLogger().setLevel(
         logging.DEBUG if debug else getattr(logging, settings.log_level.upper(), logging.INFO)
     )
+    configure_debug_logging(
+        settings.data_dir,
+        "worker",
+        logging.DEBUG if debug else getattr(logging, settings.log_level.upper(), logging.INFO),
+        lambda: _setting_enabled(database, "debug_redact_secrets"),
+    )
     stop_event = asyncio.Event()
     identity = worker_identity()
     secrets = SecretBox(settings.resolved_master_key_file)
@@ -285,7 +319,10 @@ async def run_worker(settings: Settings) -> None:
     checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
 
     async def monitor_handler(job: Job) -> None:
-        await checks.handle(job, identity)
+        if job.job_type == JobType.MONITOR_CHECK:
+            await checks.handle(job, identity)
+        else:
+            await AdminJobService(database, secrets).handle(job, identity)
 
     loop = asyncio.get_running_loop()
     for signal_name in (signal.SIGINT, signal.SIGTERM):
@@ -330,3 +367,14 @@ async def run_worker(settings: Settings) -> None:
 
 def run() -> None:
     asyncio.run(run_worker(get_settings()))
+
+
+def _setting_enabled(database: Database, key: str) -> bool:
+    try:
+        with database.session() as session:
+            return (
+                session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
+                != "false"
+            )
+    except Exception:
+        return True

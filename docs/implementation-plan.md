@@ -1,5 +1,13 @@
 # План реализации TorrWatch 1.0
 
+## Текущий release fix: административные действия
+
+План: использовать существующую leased `jobs` для проверки клиента и безопасного
+удаления; показать три очереди и повтор доставки; хранить проверенный статус
+авторизации отдельно от импорта; добавить подтверждения, offline regression
+tests, миграцию, затем полные quality gates и Docker/UI acceptance. Это
+доработка существующего администрирования, не новая фаза.
+
 ## Принципы выполнения
 
 Работа ведётся по фазам из `SPEC.md`: следующая фаза начинается только после
@@ -28,8 +36,7 @@
 5. Настроить Alembic и первую миграцию, пригодную для чистого развёртывания.
 6. Реализовать bootstrap администратора и сессионную аутентификацию с
    Argon2id, HttpOnly/SameSite cookie, сроком действия сессии и CSRF-защитой
-   для изменяющих состояние browser-маршрутов. На Фазе 0 не реализовывать
-   API-токены и пользовательские CRUD-функции следующих фаз.
+   для изменяющих состояние browser-маршрутов.
 7. Добавить `/health/live`, `/health/ready`, минимальную страницу входа и
    защищённую стартовую страницу; worker должен писать heartbeat и корректно
    завершаться по SIGTERM.
@@ -192,13 +199,13 @@ response-loss; local enqueue идемпотентен.
 
 ## Фаза 9 — UI completion
 
-Собрать серверные Jinja/HTMX страницы и REST `/api/v1` поверх общего service
-layer: dashboard, monitors, timeline, plugins/accounts/proxies/clients,
+Собрать серверные Jinja/HTMX страницы поверх общего service layer: dashboard,
+monitors, timeline, plugins/accounts/proxies/clients,
 notifications, events, settings, system status. Добавить accessibility и
 browser/integration тесты для критических сценариев.
 
-Статус: server-rendered responsive admin pages и `/api/v1` используют общий
-`AdminService`; monitor URL canonicalization идёт через plugin registry, а
+Статус: server-rendered responsive admin pages используют общий `AdminService`;
+monitor URL canonicalization идёт через plugin registry, а
 manual check только ставит durable job в очередь. Browser/JSON mutations имеют
 CSRF, safe serialization не раскрывает encrypted configuration или secrets.
 

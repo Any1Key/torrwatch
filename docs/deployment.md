@@ -26,8 +26,8 @@ Docker socket, host network, `NET_ADMIN` или `privileged` mode.
 The UI is server-rendered and has no Node/SPA build step. Publish it through
 HTTPS in production and set `TORRWATCH_SESSION_HTTPS_ONLY=true` so the
 administrator session cookie is Secure. Reverse proxies must preserve ordinary
-form posts and the `X-CSRF-Token` header used by JSON mutations. Do not expose
-the admin UI or `/api/v1` to an untrusted network without an access boundary.
+form posts. Do not expose the admin UI to an untrusted network without an
+access boundary.
 
 ## Torrent clients (Phase 6)
 
@@ -48,3 +48,9 @@ Delivery выполняется worker-ом из durable queue. При заме�
 [инструкция](admin-setup.md). Изменение UI не требует миграции или установки
 Node. Пересоберите образ и выполните `docker compose up -d --build`.
 Существующие `/data` и master key должны сохраняться.
+# Обновление административного интерфейса
+
+Перед обновлением сохраните application backup и отдельно master key.
+Миграция `20260915_0009` добавляет поля без удаления данных и выполняется только
+web startup. Обновляйте web и worker вместе. После обновления старые сессии
+показаны как ожидающие проверки, поскольку прежний импорт не доказывал успешный вход.

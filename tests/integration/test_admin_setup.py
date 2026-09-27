@@ -10,6 +10,7 @@ from sqlalchemy import select
 from tests.integration.test_phase9_web import _login
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.models import (
+    Job,
     MonitorItem,
     NotificationChannel,
     NotificationJob,
@@ -42,7 +43,7 @@ def test_fresh_dashboard_empty_states_and_static_assets(client: TestClient) -> N
     for path in (
         "/configure/clients",
         "/configure/sessions",
-        "/monitors/new",
+        "/torrents/new",
         "/configure/notifications",
         "/configure/paths",
     ):
@@ -51,7 +52,7 @@ def test_fresh_dashboard_empty_states_and_static_assets(client: TestClient) -> N
         "/clients",
         "/proxies",
         "/notifications",
-        "/monitors",
+        "/torrents",
         "/events",
         "/system",
         "/trackers",
@@ -129,7 +130,7 @@ def test_browser_complete_setup_and_durable_check(
         "/configure/proxies/1",
         "/configure/sessions",
         "/settings/sessions",
-        "/api/v1/clients",
+        "/clients",
     ):
         assert secret not in client.get(path).text
     assert (
@@ -164,12 +165,13 @@ def test_browser_complete_setup_and_durable_check(
     with db.session() as s:
         box = SecretBox(client.app.state.settings.resolved_master_key_file)
         assert box.decrypt(s.get(TorrentClient, 1).encrypted_password) == secret
-    first = client.post("/monitors/1/check", data={"csrf": token})
+    first = client.post("/torrents/1/check", data={"csrf": token})
     assert "поставлена в очередь" in first.text
-    assert "уже в очереди" in client.post("/monitors/1/check", data={"csrf": token}).text
-    assert client.get("/api/v1/system").json()["pending_monitor_jobs"] == 1
-    assert client.get("/monitors/1/edit").status_code == 200
-    assert client.post("/monitors/1/pause", data={"csrf": token}).status_code == 200
+    assert "уже в очереди" in client.post("/torrents/1/check", data={"csrf": token}).text
+    with db.session() as s:
+        assert len(s.scalars(select(Job)).all()) == 1
+    assert client.get("/torrents/1/edit").status_code == 200
+    assert client.post("/torrents/1/pause", data={"csrf": token}).status_code == 200
     assert (
         client.post(
             "/configure/monitors/1",
@@ -286,11 +288,11 @@ def test_unknown_resources_and_actions(client: TestClient) -> None:
     for path in (
         "/settings/unknown",
         "/configure/unknown",
-        "/monitors/999",
-        "/monitors/999/edit",
+        "/torrents/999",
+        "/torrents/999/edit",
         "/configure/clients/999",
     ):
         assert client.get(path).status_code == 404
     assert client.get("/resolve-url", params={"url": "https://example.invalid"}).status_code == 422
-    assert client.post("/monitors/999/check", data={"csrf": token}).status_code == 404
+    assert client.post("/torrents/999/check", data={"csrf": token}).status_code == 404
     assert client.post("/notifications/999/test", data={"csrf": token}).status_code == 422

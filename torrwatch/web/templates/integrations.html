@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Интеграции · TorrWatch{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><p class="eyebrow">РАСШИРЕНИЯ И СЕРВИСЫ</p><h1>Интеграции</h1><p>Подключайте браузерные инструменты и внешние сервисы TorrWatch.</p></div>
+</header>
+<div class="cards">
+  <section class="card">
+    <span class="badge">Готово</span>
+    <h2>Браузерное расширение</h2>
+    <p>Передаёт Cookie и User-Agent из авторизованной вкладки трекера в TorrWatch.</p>
+    <div class="actions"><a class="button" href="/extension/download"><svg class="button-icon"><use href="#i-download"/></svg> Скачать расширение</a><a class="button secondary" href="/configure/sessions">Импортировать сессию</a></div>
+    <p class="muted">После скачивания распакуйте ZIP и установите папку через <code>chrome://extensions</code>.</p>
+  </section>
+  <section class="card">
+    <span class="badge">Запланировано</span>
+    <h2>Telegram-бот</h2>
+    <p>Уведомления о новых версиях раздач, ошибках проверок и доставке в торрент-клиент.</p>
+    <p class="muted">Настройки токена бота, chat ID и тестовое сообщение появятся здесь после подключения интеграции.</p>
+  </section>
+</div>
+{% endblock %}

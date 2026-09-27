@@ -22,6 +22,8 @@ class MonitorStatus(StrEnum):
 
 class JobType(StrEnum):
     MONITOR_CHECK = "MONITOR_CHECK"
+    CLIENT_TEST = "CLIENT_TEST"
+    CLIENT_REMOVE = "CLIENT_REMOVE"
 
 
 class JobStatus(StrEnum):

@@ -4,6 +4,17 @@ All notable changes to TorrWatch are documented here.
 
 ## Unreleased
 
+- Добавлен одноразовый импорт зашифрованной сессии трекера из браузерного
+  расширения TorrWatch Session Import; Cookie и User-Agent передаются только
+  после явного подтверждения и проверяются по домену выбранного плагина.
+- Added detailed rotating web/worker debug logs, combined diagnostic download,
+  and administrator-controlled secret redaction with safe-by-default behavior.
+- Reworked the administrative UX around actionable health: grouped navigation,
+  mobile menu, persistent worker/attention status, torrent status cards,
+  release/delivery details, per-torrent timeline, readable background operations,
+  event filters, human-readable configuration choices and safer forms.
+- Removed the public `/api/v1` surface and API-token requirement; TorrWatch is
+  administered through the authenticated, CSRF-protected web interface.
 - Established the Phase 0 application foundation.
 - Added the Phase 3 typed tracker-plugin framework, deterministic registry,
   scoped transport/context boundary, namespaced non-secret plugin state and
@@ -33,3 +44,10 @@ All notable changes to TorrWatch are documented here.
 - Browser setup связывает monitor с клиентом, прокси и зашифрованной сессией;
   секреты write-only. Check now и тест уведомления используют durable queues.
 - Добавлены offline integration regression tests; схема БД не изменена.
+# Исправления администрирования
+
+- Проверка подключения клиента через durable worker, страница очередей и повтор доставки.
+- Проверенные статусы tracker sessions вместо вывода по старым ошибкам.
+- Подтверждение удаления темы с опциональным удалением текущей задачи клиента без файлов.
+- Исправлены ответ «Проверить сейчас», вложенная форма настроек и регистр часового пояса.
+- Миграция `20260915_0009`: payload фоновых операций и статус проверки сессии.

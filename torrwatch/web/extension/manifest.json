@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "TorrWatch Session Import",
+  "version": "0.1.0",
+  "description": "Передача активной сессии трекера в TorrWatch",
+  "permissions": ["cookies", "activeTab", "storage", "permissions"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "host_permissions": [
+    "https://nnmclub.to/*",
+    "https://*.nnmclub.to/*",
+    "https://rutracker.org/*",
+    "https://*.rutracker.org/*",
+    "https://kinozal.tv/*",
+    "https://*.kinozal.tv/*"
+  ],
+  "action": {
+    "default_title": "Импортировать сессию TorrWatch",
+    "default_popup": "popup.html"
+  }
+}

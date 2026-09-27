@@ -11,6 +11,7 @@ from sqlalchemy.dialects.sqlite import insert
 from torrwatch.clients.adapters import validate_admin_endpoint
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.models import (
+    Job,
     MonitorItem,
     NotificationChannel,
     NotificationJob,
@@ -21,6 +22,8 @@ from torrwatch.db.models import (
 )
 from torrwatch.domain.enums import (
     InitialSyncMode,
+    JobStatus,
+    JobType,
     MonitorStatus,
     NotificationChannelType,
     NotificationStatus,
@@ -43,16 +46,25 @@ class ConfigurationService:
     def sessions(self) -> list[dict[str, Any]]:
         with self.db.session() as s:
             stored = {row.namespace: row for row in s.scalars(select(TrackerSession))}
-            monitors = {row.id: row.plugin_id for row in s.scalars(select(MonitorItem))}
-        latest_errors: dict[str, str] = {}
-        for event in self.admin.events():
-            plugin_id = event["plugin_id"] or monitors.get(event["monitor_id"])
-            if plugin_id and event["level"] in {"WARNING", "ERROR", "CRITICAL"}:
-                latest_errors.setdefault(plugin_id, event["message"])
+            checking = set(
+                s.scalars(
+                    select(MonitorItem.plugin_id)
+                    .join(Job, Job.monitor_id == MonitorItem.id)
+                    .where(Job.job_type == JobType.MONITOR_CHECK, Job.status == JobStatus.RUNNING)
+                )
+            )
+        statuses = {
+            "WORKING": "Работает",
+            "EXPIRED": "Истекла или неверная Cookie",
+            "UNVERIFIED": "Ожидает проверки",
+        }
         return [
             {
                 **item,
-                "last_error": latest_errors.get(item["id"]),
+                "last_error": "Трекер не принял Cookie. Войдите на сайт трекера и импортируйте новую Cookie."
+                if stored.get(f"{item['id']}:account:1")
+                and stored[f"{item['id']}:account:1"].auth_status == "EXPIRED"
+                else None,
                 "configured": bool(
                     stored.get(f"{item['id']}:account:1")
                     and stored[f"{item['id']}:account:1"].encrypted_cookies
@@ -63,7 +75,13 @@ class ConfigurationService:
                         stored.get(f"{item['id']}:account:1")
                         and stored[f"{item['id']}:account:1"].encrypted_cookies
                     )
-                    else ("Ошибка" if latest_errors.get(item["id"]) else "Готова к проверке")
+                    else (
+                        "Проверяется"
+                        if item["id"] in checking
+                        else statuses.get(
+                            stored[f"{item['id']}:account:1"].auth_status, "Ожидает проверки"
+                        )
+                    )
                 ),
             }
             for item in self.admin.trackers()
@@ -76,13 +94,23 @@ class ConfigurationService:
         if resource == "sessions":
             plugin = self.admin.registry.get(values["plugin"])
             header = values.get("cookie", "").strip()
-            if not header or "\n" in header or "\r" in header or len(header) > 32768:
-                raise ValueError("cookie")
             agent = values.get("user_agent", "")
             if "\r" in agent or "\n" in agent or len(agent) > 1024:
                 raise ValueError("user_agent")
+            namespace = f"{plugin.manifest.id}:account:1"
+            if not header:
+                with self.db.session() as s:
+                    stored = s.scalar(
+                        select(TrackerSession).where(TrackerSession.namespace == namespace)
+                    )
+                    if stored is None or not stored.encrypted_cookies:
+                        raise ValueError("cookie")
+                SessionStore(self.db, self.secrets).clear(namespace)
+                return 1
+            if "\n" in header or "\r" in header or len(header) > 32768:
+                raise ValueError("cookie")
             SessionStore(self.db, self.secrets).import_cookie_header(
-                f"{plugin.manifest.id}:account:1", header, values.get("user_agent") or None
+                namespace, header, values.get("user_agent") or None
             )
             return 1
         with self.db.session() as s:
@@ -90,13 +118,17 @@ class ConfigurationService:
                 path = values.get("path", "").strip()
                 if not path.startswith("/") or "\x00" in path or "\n" in path or "\r" in path:
                     raise ValueError("path")
-                row = s.get(StoragePath, ident) if ident else StoragePath()
-                if row is None:
+                storage = s.get(StoragePath, ident) if ident else StoragePath()
+                if storage is None:
                     raise ValueError("path")
-                row.name, row.path, row.enabled = name, path, values.get("enabled") == "on"
-                s.add(row)
+                storage.name, storage.path, storage.enabled = (
+                    name,
+                    path,
+                    values.get("enabled") == "on",
+                )
+                s.add(storage)
                 s.flush()
-                return row.id
+                return storage.id
             if resource == "clients":
                 kind = TorrentClientType(values["type"])
                 endpoint = validate_admin_endpoint(values["url"])
