@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +14,7 @@ from torrwatch.core.config import Settings
 from torrwatch.db.database import Database
 from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion, TrackerSession
 from torrwatch.domain.enums import DeliveryStatus, InitialSyncMode, JobStatus, MonitorStatus
+from torrwatch.notifications.service import NotificationRepository
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
 from torrwatch.torrent import TorrentMetadata, TorrentStore, TorrentValidationError
 from torrwatch.trackers.context import PluginHttpClient, ScopedPluginSecrets, TrackerPluginContext
@@ -23,6 +25,7 @@ from torrwatch.transport.http import HttpTransport
 
 AUTH_RETRY_SECONDS = 21_600
 PARSER_RETRY_SECONDS = 10_800
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -229,6 +232,7 @@ class MonitorCheckService:
                 "Initial torrent baseline was established."
                 if snapshot.current_release_id is None
                 else "A new torrent identity was stored.",
+                release_id=draft.id,
             )
 
     @staticmethod
@@ -440,21 +444,31 @@ class MonitorCheckService:
         plugin_id: str,
         event_code: str,
         message: str,
+        release_id: int | None = None,
     ) -> None:
+        event_id: int | None = None
         with self._database.session() as session:
             if not self._owned(session, job_id, worker_id):
                 return
-            session.add(
-                Event(
-                    monitor_id=monitor_id,
-                    tracker_plugin_id=plugin_id,
-                    level="INFO",
-                    event_code=event_code,
-                    message=message,
-                    details_json="{}",
-                    created_at=now_utc(),
-                )
+            event = Event(
+                monitor_id=monitor_id,
+                tracker_plugin_id=plugin_id,
+                level="INFO",
+                event_code=event_code,
+                message=message,
+                details_json="{}",
+                created_at=now_utc(),
             )
+            session.add(event)
+            session.flush()
+            event_id = event.id
+        if event_id is not None:
+            try:
+                NotificationRepository(self._database).enqueue_for_monitor_event(
+                    event_id, event_code, monitor_id, message, release_id
+                )
+            except Exception:
+                logger.exception("Could not enqueue notification for event %s", event_id)
 
     def _apply_retention(
         self, job_id: int, worker_id: str, monitor_id: int, current_id: int

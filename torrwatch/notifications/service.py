@@ -10,7 +10,13 @@ from sqlalchemy.dialects.sqlite import insert
 
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
-from torrwatch.db.models import NotificationChannel, NotificationJob
+from torrwatch.db.models import (
+    MonitorItem,
+    NotificationChannel,
+    NotificationJob,
+    ReleaseVersion,
+    TorrentClient,
+)
 from torrwatch.domain.enums import NOTIFICATION_CLAIMABLE_STATUSES, NotificationStatus
 from torrwatch.notifications.adapters import adapter_for
 from torrwatch.notifications.repository import NotificationChannelRepository
@@ -18,6 +24,18 @@ from torrwatch.notifications.types import NotificationError, NotificationErrorCo
 from torrwatch.services.jobs import now_utc
 
 RETRY_SECONDS = (60, 300, 900, 3600, 10800)
+
+EVENT_NOTIFICATION_TYPES = {
+    "TORRENT_CHANGE_DETECTED": "UPDATE_DETECTED",
+    "AUTH_REQUIRED": "TRACKER_AUTH_FAILED",
+    "AUTH_FAILED": "TRACKER_AUTH_FAILED",
+    "PLUGIN_PARSE_ERROR": "TRACKER_BROKEN",
+    "TRACKER_UNAVAILABLE": "TRACKER_BROKEN",
+    "TRACKER_NETWORK_ERROR": "TRACKER_BROKEN",
+    "TRACKER_RATE_LIMITED": "TRACKER_BROKEN",
+    "PROXY_ERROR": "TRACKER_BROKEN",
+    "INVALID_TORRENT_RESPONSE": "TRACKER_BROKEN",
+}
 
 
 def notification_payload(
@@ -67,6 +85,47 @@ class NotificationRepository:
                 )
                 queued += int(getattr(result, "rowcount", 0) or 0)
         return queued
+
+    def enqueue_for_monitor_event(
+        self,
+        event_id: int,
+        event_code: str,
+        monitor_id: int,
+        message: str,
+        release_id: int | None = None,
+    ) -> int:
+        """Translate an internal monitor event into configured notifications."""
+        event_type = EVENT_NOTIFICATION_TYPES.get(event_code)
+        if event_type is None:
+            return 0
+        with self.database.session() as session:
+            monitor = session.get(MonitorItem, monitor_id)
+            release = session.get(ReleaseVersion, release_id) if release_id else None
+            client = (
+                session.get(TorrentClient, monitor.torrent_client_id)
+                if monitor is not None and monitor.torrent_client_id is not None
+                else None
+            )
+            if monitor is None:
+                return 0
+            payload = notification_payload(
+                event_type=event_type,
+                message=message,
+                monitor_id=monitor.id,
+                release_id=release.id if release else None,
+            )
+            payload.update(
+                {
+                    "monitor_name": monitor.name,
+                    "external_tracker_id": monitor.external_tracker_id,
+                    "torrent_name": release.torrent_name if release else None,
+                    "size_bytes": release.total_size if release else None,
+                    "file_count": release.file_count if release else None,
+                    "client_name": client.name if client else None,
+                    "client_save_path": monitor.client_save_path,
+                }
+            )
+        return self.enqueue_for_event(event_type, payload, event_id)
 
     def claim_next(self, worker_id: str, lease_seconds: int) -> NotificationJob | None:
         now = now_utc()
