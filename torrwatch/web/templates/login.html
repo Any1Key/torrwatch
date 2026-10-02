@@ -3,36 +3,24 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="/static/admin.css?v=14">
+    <link rel="stylesheet" href="/static/admin.css?v=15">
     <title>Вход — TorrWatch</title>
   </head>
   <body class="login-page">
-    <main class="auth-shell">
-      <aside class="auth-sidebar">
-        <a class="brand" href="/login" aria-label="TorrWatch"><span class="brand-icon">T</span>TorrWatch</a>
-        <p class="eyebrow">УПРАВЛЕНИЕ РАЗДАЧАМИ</p>
-        <div class="auth-sidebar-note"><span class="auth-sidebar-mark"></span><span>Локальная панель<br>мониторинга торрентов</span></div>
-        <small>SELF-HOSTED TORRENT MONITOR</small>
-      </aside>
-
-      <section class="auth-workspace">
-        <div class="auth-topline"><span>РАБОЧЕЕ ПРОСТРАНСТВО</span><span class="auth-local"><i></i> ЛОКАЛЬНЫЙ ДОСТУП</span></div>
-        <div class="auth-content">
-          <header class="auth-heading"><p class="eyebrow">УЧЁТНАЯ ЗАПИСЬ</p><h1>Вход</h1><p>Войдите, чтобы продолжить работу с TorrWatch.</p></header>
-          <section class="auth-card">
-            <h2>Данные администратора</h2>
-            <p class="auth-card-hint">Используйте имя и пароль, заданные при настройке.</p>
-            {% if error %}<p class="alert auth-error" role="alert">{{ error }}</p>{% endif %}
-            <form method="post" action="/login" class="auth-form">
-              <input type="hidden" name="csrf" value="{{ csrf_token }}">
-              <div class="field"><label for="username">Имя администратора</label><input id="username" name="username" autocomplete="username" placeholder="Имя пользователя" autofocus required></div>
-              <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Пароль" required></div>
-              <label class="auth-remember"><input type="checkbox" name="remember"><span>Запомнить меня на 30 дней</span></label>
-              <button class="auth-submit" type="submit">Войти</button>
-            </form>
-          </section>
-          <p class="auth-footnote">TorrWatch · Локальная панель управления</p>
-        </div>
+    <main class="login-center">
+      <section class="login-card" aria-label="Вход в TorrWatch">
+        <div class="login-card-brand"><span class="brand-icon">T</span><span>TorrWatch</span></div>
+        <h1>Вход</h1>
+        <p class="login-card-subtitle">Войдите в панель управления раздачами.</p>
+        {% if error %}<p class="alert login-card-error" role="alert">{{ error }}</p>{% endif %}
+        <form method="post" action="/login" class="login-card-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <div class="field"><label for="username">Имя администратора</label><input id="username" name="username" autocomplete="username" placeholder="Имя пользователя" autofocus required></div>
+          <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Пароль" required></div>
+          <label class="login-card-remember"><input type="checkbox" name="remember"><span>Запомнить меня на 30 дней</span></label>
+          <button class="login-card-submit" type="submit">Войти</button>
+        </form>
+        <p class="login-card-footer">TorrWatch · Локальная панель</p>
       </section>
     </main>
   </body>
