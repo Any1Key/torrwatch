@@ -1,18 +1,57 @@
 <!doctype html>
 <html lang="ru">
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/static/admin.css"><title>Вход — TorrWatch</title></head>
-  <body>
-    <main class="login-shell card">
-      <h1>TorrWatch</h1>
-      <p class="muted">Войдите для управления раздачами и подключениями.</p>
-      {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
-      <form method="post" action="/login">
-        <input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <div class="field"><label for="username">Имя администратора</label><input id="username" name="username" autocomplete="username" required></div>
-        <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
-        <label class="remember"><input type="checkbox" name="remember"> Запомнить меня на 30 дней</label>
-        <button type="submit">Войти</button>
-      </form>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="/static/admin.css?v=12">
+    <title>Вход — TorrWatch</title>
+  </head>
+  <body class="login-page">
+    <main class="login-layout">
+      <section class="login-intro" aria-label="О TorrWatch">
+        <div class="login-brand"><span class="login-brand-mark">T</span><span>TorrWatch</span></div>
+        <div class="login-intro-copy">
+          <span class="login-kicker">ЛИЧНАЯ ПАНЕЛЬ</span>
+          <h1>Следите за раздачами<br><em>спокойно.</em></h1>
+          <p>Проверки трекеров, версии торрентов и подключения — в одном рабочем пространстве.</p>
+        </div>
+        <div class="login-points" aria-label="Возможности TorrWatch">
+          <span><b>01</b> Фоновые проверки</span>
+          <span><b>02</b> Безопасные сессии</span>
+          <span><b>03</b> Доставка в клиент</span>
+        </div>
+        <div class="login-orbit login-orbit-one"></div>
+        <div class="login-orbit login-orbit-two"></div>
+      </section>
+
+      <section class="login-panel">
+        <div class="login-form-wrap">
+          <div class="login-mobile-brand"><span class="login-brand-mark">T</span><span>TorrWatch</span></div>
+          <span class="login-kicker">ДОБРО ПОЖАЛОВАТЬ</span>
+          <h2>Вход в панель</h2>
+          <p class="login-subtitle">Введите данные администратора, чтобы продолжить.</p>
+          {% if error %}<p class="alert login-alert" role="alert">{{ error }}</p>{% endif %}
+          <form method="post" action="/login" class="login-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <div class="field">
+              <label for="username">Имя администратора</label>
+              <input id="username" name="username" autocomplete="username" placeholder="Например, admin" autofocus required>
+            </div>
+            <div class="field">
+              <label for="password">Пароль</label>
+              <div class="login-password-field">
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Введите пароль" required>
+                <button class="login-password-toggle" type="button" data-reveal="password" aria-label="Показать пароль">Показать</button>
+              </div>
+            </div>
+            <label class="login-remember"><input type="checkbox" name="remember"> <span>Запомнить меня на 30 дней</span></label>
+            <button class="login-submit" type="submit">Войти в TorrWatch <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="login-security"><span aria-hidden="true">●</span> Доступ защищён сессионной авторизацией</p>
+        </div>
+        <p class="login-footer">Локальная панель управления · TorrWatch</p>
+      </section>
     </main>
+    <script defer src="/static/admin.js?v=8"></script>
   </body>
 </html>
