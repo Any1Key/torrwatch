@@ -3,54 +3,44 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="/static/admin.css?v=12">
+    <link rel="stylesheet" href="/static/admin.css?v=13">
     <title>Вход — TorrWatch</title>
   </head>
   <body class="login-page">
-    <main class="login-layout">
-      <section class="login-intro" aria-label="О TorrWatch">
-        <div class="login-brand"><span class="login-brand-mark">T</span><span>TorrWatch</span></div>
-        <div class="login-intro-copy">
-          <span class="login-kicker">TORRENT MONITORING / 01</span>
-          <h1>Порядок<br>в потоке.</h1>
-          <p>Раздачи меняются. TorrWatch замечает это раньше, чем вы успеваете открыть клиент.</p>
+    <main class="gate-page">
+      <header class="gate-header">
+        <a class="gate-brand" href="/login" aria-label="TorrWatch"><span class="gate-mark">T</span><span>TORRWATCH</span></a>
+        <span class="gate-header-label">PRIVATE TRACKER WATCH / 2026</span>
+        <span class="gate-status"><i></i> УЗЕЛ УПРАВЛЕНИЯ</span>
+      </header>
+
+      <section class="gate-hero" aria-label="Вход в TorrWatch">
+        <div class="gate-hero-copy">
+          <span class="gate-index">ЛИЧНЫЙ ДОСТУП <b>№ 001</b></span>
+          <h1>Ваши раздачи.<br><span>Под контролем.</span></h1>
+          <p>Мониторинг трекеров работает в фоне.<br>Войдите, чтобы управлять наблюдением.</p>
         </div>
-        <div class="login-points" aria-label="Возможности TorrWatch">
-            <span><b>01</b> СЛЕЖЕНИЕ</span>
-            <span><b>02</b> ВЕРСИИ</span>
-            <span><b>03</b> ДОСТАВКА</span>
+        <div class="gate-visual" aria-hidden="true">
+          <div class="gate-visual-top"><span>MONITOR / LIVE</span><span>01—04</span></div>
+          <div class="gate-track"><i></i><i></i><i></i><i></i><i></i><b></b></div>
+          <div class="gate-visual-bottom"><span>TRACKER</span><span>RELEASE</span><span>CLIENT</span></div>
+          <div class="gate-coordinates">55°45' N<br>37°37' E</div>
         </div>
-        <div class="login-orbit login-orbit-one"></div>
-        <div class="login-orbit login-orbit-two"></div>
       </section>
 
-      <section class="login-panel">
-        <div class="login-form-wrap">
-          <div class="login-mobile-brand"><span class="login-brand-mark">T</span><span>TorrWatch</span></div>
-          <span class="login-kicker">ДОБРО ПОЖАЛОВАТЬ</span>
-          <h2>Вход в панель</h2>
-          <p class="login-subtitle">Введите данные администратора, чтобы продолжить.</p>
-          {% if error %}<p class="alert login-alert" role="alert">{{ error }}</p>{% endif %}
-          <form method="post" action="/login" class="login-form">
-            <input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <div class="field">
-              <label for="username">Имя администратора</label>
-              <input id="username" name="username" autocomplete="username" placeholder="Например, admin" autofocus required>
-            </div>
-            <div class="field">
-              <label for="password">Пароль</label>
-              <div class="login-password-field">
-                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Введите пароль" required>
-                <button class="login-password-toggle" type="button" data-reveal="password" aria-label="Показать пароль">Показать</button>
-              </div>
-            </div>
-            <label class="login-remember"><input type="checkbox" name="remember"> <span>Запомнить меня на 30 дней</span></label>
-            <button class="login-submit" type="submit">Войти в TorrWatch <span aria-hidden="true">→</span></button>
-          </form>
-          <p class="login-security"><span aria-hidden="true">●</span> Доступ защищён сессионной авторизацией</p>
-        </div>
-        <p class="login-footer">Локальная панель управления · TorrWatch</p>
+      <section class="gate-access">
+        <div class="gate-access-heading"><span>ТОЧКА ВХОДА</span><b>ДОСТУП АДМИНИСТРАТОРА</b></div>
+        {% if error %}<p class="alert gate-alert" role="alert">{{ error }}</p>{% endif %}
+        <form method="post" action="/login" class="gate-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <div class="gate-field"><label for="username">01 / ИМЯ</label><input id="username" name="username" autocomplete="username" placeholder="Имя администратора" autofocus required></div>
+          <div class="gate-field"><label for="password">02 / ПАРОЛЬ</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Ваш пароль" required></div>
+          <button type="submit" class="gate-submit"><span>ОТКРЫТЬ ПАНЕЛЬ</span><b aria-hidden="true">↗</b></button>
+          <label class="gate-remember"><input type="checkbox" name="remember"><span>Оставаться в системе 30 дней</span></label>
+        </form>
       </section>
+
+      <footer class="gate-footer"><span>TORRWATCH / SELF-HOSTED</span><span>СЕССИЯ ЗАЩИЩЕНА</span><span>СИСТЕМА ГОТОВА К РАБОТЕ</span></footer>
     </main>
     <script defer src="/static/admin.js?v=8"></script>
   </body>
