@@ -26,6 +26,7 @@ from torrwatch.services.jobs import now_utc
 RETRY_SECONDS = (60, 300, 900, 3600, 10800)
 
 EVENT_NOTIFICATION_TYPES = {
+    "INITIAL_BASELINE_ESTABLISHED": "UPDATE_DETECTED",
     "TORRENT_CHANGE_DETECTED": "UPDATE_DETECTED",
     "AUTH_REQUIRED": "TRACKER_AUTH_FAILED",
     "AUTH_FAILED": "TRACKER_AUTH_FAILED",
@@ -116,6 +117,7 @@ class NotificationRepository:
             )
             payload.update(
                 {
+                    "initial_baseline": event_code == "INITIAL_BASELINE_ESTABLISHED",
                     "monitor_name": monitor.name,
                     "external_tracker_id": monitor.external_tracker_id,
                     "torrent_name": release.torrent_name if release else None,

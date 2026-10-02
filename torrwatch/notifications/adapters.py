@@ -46,7 +46,12 @@ def telegram_message(payload: dict[str, object]) -> str:
         "SYSTEM_ERROR": "⚠️ Системная ошибка",
         "TEST": "🧪 Тестовое уведомление",
     }
-    lines = [f"<b>TorrWatch · {html.escape(event_titles.get(event_type, event_type))}</b>"]
+    title = (
+        "➕ Новая раздача добавлена"
+        if payload.get("initial_baseline")
+        else event_titles.get(event_type, event_type)
+    )
+    lines = [f"<b>TorrWatch · {html.escape(title)}</b>"]
     name = payload.get("monitor_name") or payload.get("torrent_name")
     tracker_id = payload.get("external_tracker_id")
     if name:
