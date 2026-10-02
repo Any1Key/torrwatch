@@ -3,45 +3,37 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="/static/admin.css?v=13">
+    <link rel="stylesheet" href="/static/admin.css?v=14">
     <title>Вход — TorrWatch</title>
   </head>
   <body class="login-page">
-    <main class="gate-page">
-      <header class="gate-header">
-        <a class="gate-brand" href="/login" aria-label="TorrWatch"><span class="gate-mark">T</span><span>TORRWATCH</span></a>
-        <span class="gate-header-label">PRIVATE TRACKER WATCH / 2026</span>
-        <span class="gate-status"><i></i> УЗЕЛ УПРАВЛЕНИЯ</span>
-      </header>
+    <main class="auth-shell">
+      <aside class="auth-sidebar">
+        <a class="brand" href="/login" aria-label="TorrWatch"><span class="brand-icon">T</span>TorrWatch</a>
+        <p class="eyebrow">УПРАВЛЕНИЕ РАЗДАЧАМИ</p>
+        <div class="auth-sidebar-note"><span class="auth-sidebar-mark"></span><span>Локальная панель<br>мониторинга торрентов</span></div>
+        <small>SELF-HOSTED TORRENT MONITOR</small>
+      </aside>
 
-      <section class="gate-hero" aria-label="Вход в TorrWatch">
-        <div class="gate-hero-copy">
-          <span class="gate-index">ЛИЧНЫЙ ДОСТУП <b>№ 001</b></span>
-          <h1>Ваши раздачи.<br><span>Под контролем.</span></h1>
-          <p>Мониторинг трекеров работает в фоне.<br>Войдите, чтобы управлять наблюдением.</p>
-        </div>
-        <div class="gate-visual" aria-hidden="true">
-          <div class="gate-visual-top"><span>MONITOR / LIVE</span><span>01—04</span></div>
-          <div class="gate-track"><i></i><i></i><i></i><i></i><i></i><b></b></div>
-          <div class="gate-visual-bottom"><span>TRACKER</span><span>RELEASE</span><span>CLIENT</span></div>
-          <div class="gate-coordinates">55°45' N<br>37°37' E</div>
+      <section class="auth-workspace">
+        <div class="auth-topline"><span>РАБОЧЕЕ ПРОСТРАНСТВО</span><span class="auth-local"><i></i> ЛОКАЛЬНЫЙ ДОСТУП</span></div>
+        <div class="auth-content">
+          <header class="auth-heading"><p class="eyebrow">УЧЁТНАЯ ЗАПИСЬ</p><h1>Вход</h1><p>Войдите, чтобы продолжить работу с TorrWatch.</p></header>
+          <section class="auth-card">
+            <h2>Данные администратора</h2>
+            <p class="auth-card-hint">Используйте имя и пароль, заданные при настройке.</p>
+            {% if error %}<p class="alert auth-error" role="alert">{{ error }}</p>{% endif %}
+            <form method="post" action="/login" class="auth-form">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <div class="field"><label for="username">Имя администратора</label><input id="username" name="username" autocomplete="username" placeholder="Имя пользователя" autofocus required></div>
+              <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Пароль" required></div>
+              <label class="auth-remember"><input type="checkbox" name="remember"><span>Запомнить меня на 30 дней</span></label>
+              <button class="auth-submit" type="submit">Войти</button>
+            </form>
+          </section>
+          <p class="auth-footnote">TorrWatch · Локальная панель управления</p>
         </div>
       </section>
-
-      <section class="gate-access">
-        <div class="gate-access-heading"><span>ТОЧКА ВХОДА</span><b>ДОСТУП АДМИНИСТРАТОРА</b></div>
-        {% if error %}<p class="alert gate-alert" role="alert">{{ error }}</p>{% endif %}
-        <form method="post" action="/login" class="gate-form">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <div class="gate-field"><label for="username">01 / ИМЯ</label><input id="username" name="username" autocomplete="username" placeholder="Имя администратора" autofocus required></div>
-          <div class="gate-field"><label for="password">02 / ПАРОЛЬ</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Ваш пароль" required></div>
-          <button type="submit" class="gate-submit"><span>ОТКРЫТЬ ПАНЕЛЬ</span><b aria-hidden="true">↗</b></button>
-          <label class="gate-remember"><input type="checkbox" name="remember"><span>Оставаться в системе 30 дней</span></label>
-        </form>
-      </section>
-
-      <footer class="gate-footer"><span>TORRWATCH / SELF-HOSTED</span><span>СЕССИЯ ЗАЩИЩЕНА</span><span>СИСТЕМА ГОТОВА К РАБОТЕ</span></footer>
     </main>
-    <script defer src="/static/admin.js?v=8"></script>
   </body>
 </html>
