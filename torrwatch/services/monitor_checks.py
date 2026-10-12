@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from torrwatch.core.config import Settings
 from torrwatch.db.database import Database
 from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion, TrackerSession
-from torrwatch.domain.enums import DeliveryStatus, InitialSyncMode, JobStatus, MonitorStatus
+from torrwatch.domain.enums import InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.notifications.service import NotificationRepository
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
 from torrwatch.torrent import TorrentMetadata, TorrentStore, TorrentValidationError
@@ -484,19 +484,11 @@ class MonitorCheckService:
                 )
             )
         with self._database.session() as session:
-            protected_delivery_ids = set(
-                session.scalars(
-                    select(DeliveryJob.release_id).where(
-                        DeliveryJob.status.in_(
-                            (
-                                DeliveryStatus.PENDING,
-                                DeliveryStatus.RUNNING,
-                                DeliveryStatus.FAILED_RETRYABLE,
-                            )
-                        )
-                    )
-                )
-            )
+            # Delivery history keeps a foreign-key reference to every release
+            # that was sent to a client, including completed deliveries.  Do
+            # not remove those release rows during retention: the torrent
+            # artifact may be old, but the delivery record must remain valid.
+            protected_delivery_ids = set(session.scalars(select(DeliveryJob.release_id)))
         deleted = self._store.prune(
             monitor_id,
             release_ids,
