@@ -1,4 +1,17 @@
 services:
+  flaresolverr:
+    # Reuse the FlareSolverr image already present on this NAS. Pinning the
+    # digest also prevents an unattended update from changing browser behavior.
+    image: ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47
+    environment:
+      # FlareSolverr logs request bodies at info level; bodies may contain
+      # authentication cookies, so keep this private service at error level.
+      LOG_LEVEL: error
+      TZ: Europe/Moscow
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
   web:
     build: .
     image: torrwatch:dev
@@ -31,3 +44,5 @@ services:
     depends_on:
       web:
         condition: service_healthy
+      flaresolverr:
+        condition: service_started

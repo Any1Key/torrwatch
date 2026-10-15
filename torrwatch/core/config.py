@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     http_user_agent: str = "TorrWatch/0.1"
     torrent_retention_count: int = Field(default=5, ge=1, le=100)
     torrent_forced_verification_seconds: int = Field(default=86_400, ge=0)
+    flaresolverr_url: str | None = None
+    flaresolverr_refresh_seconds: int = Field(default=1_800, ge=300)
+    nnmclub_username: str | None = None
+    nnmclub_password: SecretStr | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

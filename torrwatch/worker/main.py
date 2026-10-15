@@ -25,6 +25,7 @@ from torrwatch.notifications.service import NotificationRepository, Notification
 from torrwatch.notifications.types import NotificationError, NotificationErrorCode
 from torrwatch.services.admin_jobs import AdminJobService
 from torrwatch.services.delivery import DeliveryRepository, DeliveryService
+from torrwatch.services.flaresolverr import FlareSolverrClient, FlareSolverrError, refresh_nnmclub
 from torrwatch.services.jobs import (
     JobExecutionFailure,
     JobRepository,
@@ -317,6 +318,8 @@ async def run_worker(settings: Settings) -> None:
         sessions=SessionStore(database, secrets),
     )
     checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
+    solver = FlareSolverrClient(settings.flaresolverr_url) if settings.flaresolverr_url else None
+    last_session_refresh = 0.0
 
     async def monitor_handler(job: Job) -> None:
         if job.job_type == JobType.MONITOR_CHECK:
@@ -330,6 +333,23 @@ async def run_worker(settings: Settings) -> None:
             loop.add_signal_handler(signal_name, stop_event.set)
     try:
         while not stop_event.is_set():
+            now_monotonic = asyncio.get_running_loop().time()
+            if solver and settings.nnmclub_username and settings.nnmclub_password and (
+                now_monotonic - last_session_refresh >= settings.flaresolverr_refresh_seconds
+            ):
+                last_session_refresh = now_monotonic
+                try:
+                    await refresh_nnmclub(
+                        database,
+                        secrets,
+                        solver,
+                        settings.nnmclub_username,
+                        settings.nnmclub_password.get_secret_value(),
+                    )
+                except FlareSolverrError as error:
+                    logger.warning("Automatic NNM-Club session refresh failed: %s", error)
+                else:
+                    logger.info("Automatic tracker session refresh finished.")
             await worker_cycle(
                 database,
                 identity,
