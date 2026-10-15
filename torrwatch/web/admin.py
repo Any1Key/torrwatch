@@ -18,7 +18,7 @@ from torrwatch.clients.types import TorrentClientError
 from torrwatch.core.logging import read_debug_logs
 from torrwatch.core.secrets import SecretBox, SecretKeyError
 from torrwatch.core.security import csrf_token, hash_password, require_admin, require_csrf
-from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient, User
+from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient, TrackerSession, User
 from torrwatch.notifications.types import NotificationError
 from torrwatch.services.admin import AdminService, AdminValidationError
 from torrwatch.services.admin_jobs import enqueue_client_test
@@ -79,7 +79,72 @@ def download_extension() -> StreamingResponse:
 @router.get("/integrations", response_class=HTMLResponse)
 def integrations(request: Request) -> HTMLResponse:
     """Show installed and planned external integrations."""
-    return render(request, "integrations.html")
+    with request.app.state.database.session() as session:
+        tracker_session = session.scalar(
+            select(TrackerSession).where(TrackerSession.namespace == "nnmclub:account:1")
+        )
+    return render(
+        request,
+        "integrations.html",
+        flaresolverr_url=_setting(request, "flaresolverr_url")
+        or str(request.app.state.settings.flaresolverr_url or ""),
+        flaresolverr_enabled=_setting(request, "flaresolverr_enabled") != "false",
+        flaresolverr_refresh_seconds=int(
+            _setting(request, "flaresolverr_refresh_seconds")
+            or request.app.state.settings.flaresolverr_refresh_seconds
+        ),
+        nnmclub_username=_setting(request, "nnmclub_username")
+        or request.app.state.settings.nnmclub_username
+        or "",
+        nnmclub_password_configured=bool(
+            _setting(request, "nnmclub_password_encrypted")
+            or request.app.state.settings.nnmclub_password
+        ),
+        nnmclub_session=tracker_session,
+    )
+
+
+@router.post("/integrations/flaresolverr")
+async def save_flaresolverr(request: Request) -> RedirectResponse:
+    """Save FlareSolverr automation settings without exposing stored secrets."""
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    url = str(data.get("flaresolverr_url", "")).strip().rstrip("/")
+    username = str(data.get("nnmclub_username", "")).strip()
+    password = str(data.get("nnmclub_password", ""))
+    enabled = data.get("flaresolverr_enabled") == "on"
+    try:
+        refresh_seconds = int(str(data.get("flaresolverr_refresh_seconds", "1800")))
+    except ValueError:
+        raise HTTPException(422, "Интервал должен быть целым числом секунд.") from None
+    if refresh_seconds < 300:
+        raise HTTPException(422, "Минимальный интервал автообновления — 300 секунд.")
+    if url and not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(422, "URL FlareSolverr должен начинаться с http:// или https://.")
+    if enabled and not url:
+        raise HTTPException(422, "Укажите URL FlareSolverr или отключите автообновление.")
+    settings = {
+        "flaresolverr_url": url,
+        "flaresolverr_enabled": str(enabled).lower(),
+        "flaresolverr_refresh_seconds": str(refresh_seconds),
+        "nnmclub_username": username,
+    }
+    secrets = SecretBox(request.app.state.settings.resolved_master_key_file)
+    with request.app.state.database.session() as session:
+        for key, value in settings.items():
+            row = session.get(SystemSetting, key)
+            if row is None:
+                session.add(SystemSetting(key=key, value=value))
+            else:
+                row.value = value
+        if password:
+            row = session.get(SystemSetting, "nnmclub_password_encrypted")
+            encrypted = secrets.encrypt(password)
+            if row is None:
+                session.add(SystemSetting(key="nnmclub_password_encrypted", value=encrypted))
+            else:
+                row.value = encrypted
+    return redirect(request, "/integrations", "Настройки автообновления NNM-Club сохранены.")
 
 
 @router.get("/help", response_class=HTMLResponse)

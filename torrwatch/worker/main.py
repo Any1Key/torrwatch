@@ -318,7 +318,6 @@ async def run_worker(settings: Settings) -> None:
         sessions=SessionStore(database, secrets),
     )
     checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
-    solver = FlareSolverrClient(settings.flaresolverr_url) if settings.flaresolverr_url else None
     last_session_refresh = 0.0
 
     async def monitor_handler(job: Job) -> None:
@@ -334,8 +333,10 @@ async def run_worker(settings: Settings) -> None:
     try:
         while not stop_event.is_set():
             now_monotonic = asyncio.get_running_loop().time()
-            if solver and settings.nnmclub_username and settings.nnmclub_password and (
-                now_monotonic - last_session_refresh >= settings.flaresolverr_refresh_seconds
+            automation = _flaresolverr_config(database, settings, secrets)
+            solver = FlareSolverrClient(automation["url"]) if automation["enabled"] and automation["url"] else None
+            if solver and automation["username"] and automation["password"] and (
+                now_monotonic - last_session_refresh >= automation["refresh_seconds"]
             ):
                 last_session_refresh = now_monotonic
                 try:
@@ -343,8 +344,8 @@ async def run_worker(settings: Settings) -> None:
                         database,
                         secrets,
                         solver,
-                        settings.nnmclub_username,
-                        settings.nnmclub_password.get_secret_value(),
+                        automation["username"],
+                        automation["password"],
                     )
                 except FlareSolverrError as error:
                     logger.warning("Automatic NNM-Club session refresh failed: %s", error)
@@ -398,3 +399,40 @@ def _setting_enabled(database: Database, key: str) -> bool:
             )
     except Exception:
         return True
+
+
+def _flaresolverr_config(database: Database, settings: Settings, secrets: SecretBox) -> dict[str, object]:
+    """Read UI overrides, falling back to bootstrap environment settings."""
+    try:
+        with database.session() as session:
+            values = {
+                row.key: row.value
+                for row in session.scalars(select(SystemSetting)).all()
+                if row.key in {
+                    "flaresolverr_url",
+                    "flaresolverr_enabled",
+                    "flaresolverr_refresh_seconds",
+                    "nnmclub_username",
+                    "nnmclub_password_encrypted",
+                }
+            }
+    except Exception:
+        values = {}
+    password = settings.nnmclub_password.get_secret_value() if settings.nnmclub_password else ""
+    encrypted = values.get("nnmclub_password_encrypted")
+    if encrypted:
+        try:
+            password = secrets.decrypt(encrypted)
+        except Exception:
+            logger.warning("Stored NNM-Club password cannot be decrypted; using environment value.")
+    try:
+        refresh_seconds = max(300, int(values.get("flaresolverr_refresh_seconds", settings.flaresolverr_refresh_seconds)))
+    except (TypeError, ValueError):
+        refresh_seconds = settings.flaresolverr_refresh_seconds
+    return {
+        "url": values.get("flaresolverr_url") or settings.flaresolverr_url,
+        "enabled": values.get("flaresolverr_enabled", "true") != "false",
+        "refresh_seconds": refresh_seconds,
+        "username": values.get("nnmclub_username") or settings.nnmclub_username,
+        "password": password,
+    }
