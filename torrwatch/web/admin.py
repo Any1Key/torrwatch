@@ -101,6 +101,11 @@ def integrations(request: Request) -> HTMLResponse:
             or request.app.state.settings.nnmclub_password
         ),
         nnmclub_session=tracker_session,
+        nnmclub_last_successful_auth_at=(
+            tracker_session.last_successful_auth_at.isoformat()
+            if tracker_session and tracker_session.last_successful_auth_at
+            else None
+        ),
     )
 
 

@@ -13,7 +13,7 @@
       <dt>Сервис</dt><dd>{{ flaresolverr_url or 'Не настроен' }}</dd>
       <dt>Состояние</dt><dd>{{ 'Включено' if flaresolverr_enabled else 'Отключено' }}</dd>
       <dt>Интервал</dt><dd>{{ flaresolverr_refresh_seconds // 60 }} мин.</dd>
-      <dt>Сессия NNM-Club</dt><dd>{{ nnmclub_session.auth_status if nnmclub_session else 'Не импортирована' }}{% if nnmclub_session and nnmclub_session.last_successful_auth_at %} · {{ nnmclub_session.last_successful_auth_at|pretty_datetime(timezone) }}{% endif %}</dd>
+      <dt>Сессия NNM-Club</dt><dd>{{ nnmclub_session.auth_status if nnmclub_session else 'Не импортирована' }}{% if nnmclub_last_successful_auth_at %} · {{ nnmclub_last_successful_auth_at|pretty_datetime(timezone) }}{% endif %}</dd>
     </dl>
     <form method="post" action="/integrations/flaresolverr">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
