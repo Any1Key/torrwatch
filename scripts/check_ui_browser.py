@@ -166,7 +166,25 @@ def test_browser(artifact_dir: Path) -> None:
                 print("BROWSER OVERFLOW ELEMENTS:", offenders, flush=True)
             assert dimensions["scroll"] - dimensions["client"] <= 12, f"Horizontal page overflow at {width}"
             assert dimensions["detail"] > 280, f"Detail panel too narrow at {width}"
+            if width == 390:
+                assert not page.locator("#sidebar").is_visible(), "Mobile sidebar visible before menu opened"
+                page.locator("[data-menu-toggle]").click()
+                assert page.locator("#sidebar").is_visible(), "Mobile menu failed to open"
+                page.screenshot(path=str(artifact_dir / "monitors-390-menu-open.png"), full_page=True)
+                page.locator("[data-menu-toggle]").click()
+                assert not page.locator("#sidebar").is_visible(), "Mobile menu failed to close"
             page.screenshot(path=str(artifact_dir / f"monitors-{width}.png"), full_page=True)
+
+        # All top-level screens must also remain usable on a phone.
+        for suffix in ("/dashboard", "/integrations", "/clients", "/events", "/system", "/help", "/torrents/new"):
+            page.goto(BASE + suffix)
+            assert not page.locator("#sidebar").is_visible(), suffix + ": menu unexpectedly open"
+            widths = page.evaluate("""() => ({
+                viewport: document.documentElement.clientWidth,
+                content: document.documentElement.scrollWidth
+            })""")
+            assert widths["content"] - widths["viewport"] <= 12, f"Mobile overflow on {suffix}: {widths}"
+            print("BROWSER MOBILE OK:", suffix, flush=True)
 
         page.set_viewport_size({"width": 1536, "height": 1024})
         page.goto(BASE + "/dashboard")
