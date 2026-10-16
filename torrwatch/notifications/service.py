@@ -11,6 +11,7 @@ from sqlalchemy.dialects.sqlite import insert
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
 from torrwatch.db.models import (
+    DeliveryJob,
     MonitorItem,
     NotificationChannel,
     NotificationJob,
@@ -128,6 +129,37 @@ class NotificationRepository:
                 }
             )
         return self.enqueue_for_event(event_type, payload, event_id)
+
+    def enqueue_for_delivery_job(self, delivery_id: int, event_type: str, message: str) -> int:
+        """Publish the final result of a torrent delivery to configured channels."""
+        with self.database.session() as session:
+            delivery = session.get(DeliveryJob, delivery_id)
+            if delivery is None:
+                return 0
+            release = session.get(ReleaseVersion, delivery.release_id)
+            monitor = session.get(MonitorItem, release.monitor_id) if release else None
+            client = session.get(TorrentClient, delivery.client_id)
+            if release is None or monitor is None:
+                return 0
+            payload = notification_payload(
+                event_type=event_type,
+                message=message,
+                monitor_id=monitor.id,
+                release_id=release.id,
+            )
+            payload.update(
+                {
+                    "monitor_name": monitor.name,
+                    "external_tracker_id": monitor.external_tracker_id,
+                    "torrent_name": release.torrent_name,
+                    "size_bytes": release.total_size,
+                    "file_count": release.file_count,
+                    "client_name": client.name if client else None,
+                    "client_save_path": monitor.client_save_path,
+                    "error": delivery.last_error,
+                }
+            )
+        return self.enqueue_for_event(event_type, payload, delivery_id)
 
     def claim_next(self, worker_id: str, lease_seconds: int) -> NotificationJob | None:
         now = now_utc()

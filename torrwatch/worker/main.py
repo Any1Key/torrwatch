@@ -152,7 +152,23 @@ async def execute_claimed_delivery(
         logger.debug("Полная трассировка доставки задачи %s", job.id, exc_info=True)
         if owns_job:
             deliveries.fail(job.id, worker_id, str(error), retryable=True)
+            NotificationRepository(deliveries.database).enqueue_for_delivery_job(
+                job.id, "DELIVERY_FAILED", str(error)
+            )
         return False
+    if owns_job:
+        with deliveries.database.session() as session:
+            latest = session.get(DeliveryJob, job.id)
+            status = str(latest.status) if latest else ""
+            error = latest.last_error if latest else None
+        if status == "SUCCESS":
+            NotificationRepository(deliveries.database).enqueue_for_delivery_job(
+                job.id, "DELIVERY_SUCCESS", "Торрент успешно добавлен в торрент-клиент."
+            )
+        elif status == "FAILED_PERMANENT":
+            NotificationRepository(deliveries.database).enqueue_for_delivery_job(
+                job.id, "DELIVERY_FAILED", error or "Доставка завершилась постоянной ошибкой."
+            )
     return owns_job and completed
 
 
