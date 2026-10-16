@@ -1,0 +1,49 @@
+name: TorrWatch UI integration
+
+on:
+  pull_request:
+    paths:
+      - 'torrwatch/**'
+      - 'scripts/check_ui_*.py'
+      - 'Dockerfile'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/ui-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install TorrWatch and browser test tools
+        run: python -m pip install -e . 'httpx>=0.28,<1' 'playwright>=1.50,<2'
+      - name: Exercise the real FastAPI app using isolated SQLite
+        run: python scripts/check_ui_integration.py
+      - name: Install Chromium browser
+        run: python -m playwright install --with-deps chromium
+      - name: Real Chromium interactions and responsive screenshots
+        run: python scripts/check_ui_browser.py
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: torrwatch-ui-browser-screens
+          path: ui-browser-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker image build
+        run: docker build -t torrwatch-ui-validation:pr .

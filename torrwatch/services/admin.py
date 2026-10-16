@@ -163,6 +163,26 @@ class AdminService:
             job.last_error = None
             return True
 
+    def versions(self, monitor_id: int) -> list[dict[str, Any]]:
+        """Recent persisted release versions for the monitor detail sidebar."""
+        with self.database.session() as session:
+            releases = session.scalars(
+                select(ReleaseVersion)
+                .where(ReleaseVersion.monitor_id == monitor_id)
+                .order_by(ReleaseVersion.detected_at.desc(), ReleaseVersion.id.desc())
+                .limit(30)
+            )
+            return [
+                {
+                    "id": release.id,
+                    "name": release.torrent_name,
+                    "size": release.total_size,
+                    "file_count": release.file_count,
+                    "detected_at": _timestamp(release.detected_at),
+                }
+                for release in releases
+            ]
+
     def monitor(self, monitor_id: int) -> dict[str, Any] | None:
         with self.database.session() as session:
             item = session.get(MonitorItem, monitor_id)
