@@ -525,7 +525,11 @@ def form(
             "events": "UPDATE_DETECTED,DELIVERY_SUCCESS,DELIVERY_FAILED",
         }
         if resource == "sessions":
-            values["account_username"] = _setting(request, "nnmclub_username") or ""
+            values["account_username"] = (
+                _setting(request, "nnmclub_username")
+                or request.app.state.settings.nnmclub_username
+                or ""
+            )
         if resource == "sessions" and selected_plugin:
             values["plugin"] = selected_plugin
             try:
