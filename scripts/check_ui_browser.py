@@ -191,6 +191,11 @@ def test_browser(artifact_dir: Path) -> None:
         page.locator("[data-theme-toggle]").click()
         assert page.locator("body.dark-theme").count() == 0
         page.screenshot(path=str(artifact_dir / "dashboard-light-1536.png"), full_page=True)
+        page.goto(BASE + "/torrents")
+        light_detail = page.locator(".tw-detail").evaluate("(el) => getComputedStyle(el).backgroundColor")
+        assert light_detail == "rgb(255, 255, 255)", f"Light monitor panel has dark styling: {light_detail}"
+        page.screenshot(path=str(artifact_dir / "monitors-light-1536.png"), full_page=True)
+        page.goto(BASE + "/dashboard")
         page.locator("[data-theme-toggle]").click()
         assert page.locator("body.dark-theme").count() == 1
         print("BROWSER OK: theme toggle", flush=True)
