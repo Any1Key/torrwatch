@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import json
-import io
-import zipfile
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
@@ -24,13 +21,9 @@ from torrwatch.services.admin import AdminService, AdminValidationError
 from torrwatch.services.admin_jobs import enqueue_client_test
 from torrwatch.services.configuration import ConfigurationService
 from torrwatch.services.jobs import now_utc
-from torrwatch.services.session_import import SessionImportService
 from torrwatch.trackers.types import TrackerPluginError
-from torrwatch.transport.cookies import SessionStore
 
 router = APIRouter(include_in_schema=False, dependencies=[Depends(require_admin)])
-session_import_router = APIRouter(include_in_schema=False)
-EXTENSION_DIR = Path(__file__).with_name("extension")
 SECTIONS = {
     "clients": (
         "Торрент-клиенты",
@@ -39,8 +32,8 @@ SECTIONS = {
     ),
     "sessions": (
         "Трекеры и сессии",
-        "Импортировать сессию",
-        "Войдите на трекер в браузере и импортируйте Cookie для доступа к раздачам.",
+        "Настроить учётную запись",
+        "Укажите логин и пароль трекера. Для NNM-Club сессия обновляется автоматически.",
     ),
     "proxies": (
         "Прокси-профили",
@@ -58,22 +51,6 @@ SECTIONS = {
         "Получайте сообщения через Telegram или webhook. Этот шаг необязателен.",
     ),
 }
-
-
-@router.get("/extension/download", response_class=StreamingResponse)
-def download_extension() -> StreamingResponse:
-    """Download the bundled browser extension as an unpacked-extension ZIP."""
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for path in sorted(EXTENSION_DIR.iterdir()):
-            if path.is_file():
-                bundle.write(path, arcname=path.name)
-    archive.seek(0)
-    return StreamingResponse(
-        archive,
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="torrwatch-session-extension.zip"'},
-    )
 
 
 @router.get("/integrations", response_class=HTMLResponse)
@@ -115,8 +92,6 @@ async def save_flaresolverr(request: Request) -> RedirectResponse:
     data = await request.form()
     require_csrf(request, str(data.get("csrf", "")))
     url = str(data.get("flaresolverr_url", "")).strip().rstrip("/")
-    username = str(data.get("nnmclub_username", "")).strip()
-    password = str(data.get("nnmclub_password", ""))
     enabled = data.get("flaresolverr_enabled") == "on"
     try:
         refresh_seconds = int(str(data.get("flaresolverr_refresh_seconds", "1800")))
@@ -132,9 +107,7 @@ async def save_flaresolverr(request: Request) -> RedirectResponse:
         "flaresolverr_url": url,
         "flaresolverr_enabled": str(enabled).lower(),
         "flaresolverr_refresh_seconds": str(refresh_seconds),
-        "nnmclub_username": username,
     }
-    secrets = SecretBox(request.app.state.settings.resolved_master_key_file)
     with request.app.state.database.session() as session:
         for key, value in settings.items():
             row = session.get(SystemSetting, key)
@@ -142,13 +115,6 @@ async def save_flaresolverr(request: Request) -> RedirectResponse:
                 session.add(SystemSetting(key=key, value=value))
             else:
                 row.value = value
-        if password:
-            row = session.get(SystemSetting, "nnmclub_password_encrypted")
-            encrypted = secrets.encrypt(password)
-            if row is None:
-                session.add(SystemSetting(key="nnmclub_password_encrypted", value=encrypted))
-            else:
-                row.value = encrypted
     return redirect(request, "/integrations", "Настройки автообновления NNM-Club сохранены.")
 
 
@@ -254,18 +220,6 @@ FIELDS = {
             "password",
             "Оставьте пустым при редактировании, чтобы сохранить текущий пароль.",
         ),
-        (
-            "cookie",
-            "Cookie",
-            "cookie",
-            "Вставьте значение name=value; name2=value2 из браузера или используйте расширение. После успешного импорта через расширение поле можно оставить пустым.",
-        ),
-        (
-            "user_agent",
-            "User-Agent",
-            "text",
-            "Скопируйте User-Agent из того же запроса для согласованной сессии.",
-        ),
     ],
     "monitors": [
         (
@@ -304,91 +258,6 @@ def service(request: Request) -> ConfigurationService:
     return ConfigurationService(
         AdminService(request.app.state.database, request.app.state.plugin_registry),
         SecretBox(request.app.state.settings.resolved_master_key_file),
-    )
-
-
-def session_import_service(request: Request) -> SessionImportService:
-    return SessionImportService(
-        request.app.state.database,
-        SecretBox(request.app.state.settings.resolved_master_key_file),
-    )
-
-
-@router.post("/session-import/start")
-async def start_session_import(request: Request) -> JSONResponse:
-    data = await request.json()
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=400, detail="Некорректный запрос.")
-    require_csrf(request, str(data.get("csrf", "")))
-    plugin_id = str(data.get("plugin", "")).strip()
-    try:
-        plugin = request.app.state.plugin_registry.get(plugin_id)
-    except TrackerPluginError as error:
-        raise HTTPException(status_code=400, detail="Трекер не найден.") from error
-    user = require_admin(request)
-    token, expires_at = session_import_service(request).create_pairing(user.id, plugin_id)
-    return JSONResponse(
-        {
-            "token": token,
-            "plugin": plugin.manifest.id,
-            "tracker": plugin.manifest.display_name,
-            "expires_at": expires_at.isoformat(),
-            "expires_in": 300,
-        }
-    )
-
-
-@router.get("/session-import/current")
-def current_session_import(request: Request, plugin: str) -> JSONResponse:
-    try:
-        tracker = request.app.state.plugin_registry.get(plugin)
-        cookies, user_agent = SessionStore(
-            request.app.state.database,
-            SecretBox(request.app.state.settings.resolved_master_key_file),
-        ).load(f"{tracker.manifest.id}:account:1")
-    except (TrackerPluginError, SecretKeyError, ValueError) as error:
-        raise HTTPException(status_code=400, detail="Не удалось прочитать сессию.") from error
-    cookie_header = "; ".join(f"{item.name}={item.value}" for item in cookies.jar)
-    return JSONResponse(
-        {
-            "configured": bool(cookie_header),
-            "cookie": cookie_header,
-            "user_agent": user_agent or "",
-        }
-    )
-
-
-@session_import_router.post("/session-import/complete")
-async def complete_session_import(request: Request) -> JSONResponse:
-    try:
-        data = await request.json()
-        if not isinstance(data, dict):
-            raise ValueError("Invalid request payload.")
-        token = str(data.get("token", "")).strip()
-        domain = str(data.get("domain", "")).strip()
-        user_agent_value = data.get("user_agent")
-        user_agent = user_agent_value.strip() if isinstance(user_agent_value, str) else ""
-        cookies = data.get("cookies")
-        importer = session_import_service(request)
-        plugin_id = importer.pairing_plugin_id(token)
-        plugin = request.app.state.plugin_registry.get(plugin_id)
-        if not isinstance(cookies, list):
-            raise ValueError("No valid tracker cookies were supplied.")
-        importer.complete_pairing(
-            token,
-            domain,
-            plugin.manifest.domains,
-            cookies,
-            user_agent,
-        )
-    except (ValueError, KeyError, SecretKeyError, TrackerPluginError) as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    return JSONResponse(
-        {
-            "ok": True,
-            "plugin": plugin_id,
-            "message": "Сессия передана и сохранена. Запустите проверку трекера.",
-        }
     )
 
 
@@ -532,19 +401,6 @@ def form(
             )
         if resource == "sessions" and selected_plugin:
             values["plugin"] = selected_plugin
-            try:
-                tracker = request.app.state.plugin_registry.get(selected_plugin)
-                cookies, user_agent = SessionStore(
-                    request.app.state.database,
-                    SecretBox(request.app.state.settings.resolved_master_key_file),
-                ).load(f"{tracker.manifest.id}:account:1")
-                values["cookie"] = "; ".join(
-                    f"{item.name}={item.value}" for item in cookies.jar
-                )
-                values["user_agent"] = user_agent or ""
-            except (TrackerPluginError, SecretKeyError, ValueError):
-                values["cookie"] = ""
-                values["user_agent"] = ""
         enabled_clients = [row for row in svc.admin.resource("clients") if row.get("enabled")]
         if len(enabled_clients) == 1:
             values["client"] = str(enabled_clients[0]["id"])

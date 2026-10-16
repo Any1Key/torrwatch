@@ -2,13 +2,13 @@
 {% block title %}Интеграции · TorrWatch{% endblock %}
 {% block content %}
 <header class="page-head">
-  <div><p class="eyebrow">РАСШИРЕНИЯ И СЕРВИСЫ</p><h1>Интеграции</h1><p>Подключайте браузерные инструменты и внешние сервисы TorrWatch.</p></div>
+  <div><p class="eyebrow">СЕРВИСЫ И АВТОМАТИЗАЦИЯ</p><h1>Интеграции</h1><p>Настройте автоматическую работу TorrWatch с внешними сервисами.</p></div>
 </header>
 <div class="cards">
   <section class="card">
     <span class="badge">Автоматизация</span>
     <h2>FlareSolverr · NNM-Club</h2>
-    <p>Автоматически обновляет сессию трекера, когда Cloudflare или срок действия Cookie мешают проверке раздач.</p>
+    <p>Автоматически обновляет сессию трекера, когда Cloudflare или срок действия технической сессии мешают проверке раздач.</p>
     <dl class="compact-list">
       <dt>Сервис</dt><dd>{{ flaresolverr_url or 'Не настроен' }}</dd>
       <dt>Состояние</dt><dd>{{ 'Включено' if flaresolverr_enabled else 'Отключено' }}</dd>
@@ -19,20 +19,11 @@
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <label class="field" for="flaresolverr_url"><span>URL FlareSolverr</span><input id="flaresolverr_url" name="flaresolverr_url" type="url" value="{{ flaresolverr_url }}" placeholder="http://flaresolverr:8191"></label>
       <label class="field" for="flaresolverr_refresh_seconds"><span>Интервал обновления, секунд</span><input id="flaresolverr_refresh_seconds" name="flaresolverr_refresh_seconds" type="number" min="300" value="{{ flaresolverr_refresh_seconds }}"></label>
-      <label class="field" for="nnmclub_username"><span>Логин NNM-Club</span><input id="nnmclub_username" name="nnmclub_username" value="{{ nnmclub_username }}" autocomplete="username"></label>
-      <label class="field" for="nnmclub_password"><span>Пароль NNM-Club</span><input id="nnmclub_password" name="nnmclub_password" type="password" placeholder="{{ 'Оставьте пустым, чтобы сохранить текущий' if nnmclub_password_configured else 'Введите пароль' }}" autocomplete="new-password"></label>
       <label class="check-row"><input type="checkbox" name="flaresolverr_enabled" {% if flaresolverr_enabled %}checked{% endif %}> Включить автоматическое обновление</label>
       <div class="actions"><button type="submit">Сохранить настройки</button></div>
     </form>
     <p><a class="button secondary" href="/configure/sessions?plugin=nnmclub">Настроить учётную запись NNM-Club</a></p>
     <p class="muted">Пароль хранится зашифрованным. Worker подхватит изменения из формы в следующем цикле; перезапуск для настроек не нужен.</p>
-  </section>
-  <section class="card">
-    <span class="badge">Готово</span>
-    <h2>Браузерное расширение</h2>
-    <p>Передаёт Cookie и User-Agent из авторизованной вкладки трекера в TorrWatch.</p>
-    <div class="actions"><a class="button" href="/extension/download"><svg class="button-icon"><use href="#i-download"/></svg> Скачать расширение</a><a class="button secondary" href="/configure/sessions">Импортировать сессию</a></div>
-    <p class="muted">После скачивания распакуйте ZIP и установите папку через <code>chrome://extensions</code>.</p>
   </section>
   <section class="card">
     <span class="badge">Запланировано</span>

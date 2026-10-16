@@ -25,7 +25,6 @@ from torrwatch.db.migrations import upgrade_database
 from torrwatch.db.models import SystemSetting
 from torrwatch.trackers.loader import load_plugin_registry
 from torrwatch.web.admin import router as browser_router
-from torrwatch.web.admin import session_import_router
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +100,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(public_router)
     app.include_router(browser_router)
-    app.include_router(session_import_router)
     app.include_router(router)
     return app
 

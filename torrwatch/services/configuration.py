@@ -36,7 +36,6 @@ from torrwatch.notifications.adapters import validate_webhook_endpoint
 from torrwatch.notifications.service import notification_payload
 from torrwatch.services.admin import AdminService
 from torrwatch.services.jobs import now_utc
-from torrwatch.transport.cookies import SessionStore
 from torrwatch.transport.proxy import ProxyService
 
 
@@ -56,13 +55,13 @@ class ConfigurationService:
             )
         statuses = {
             "WORKING": "Работает",
-            "EXPIRED": "Истекла или неверная Cookie",
+            "EXPIRED": "Истекла или неверная сессия трекера",
             "UNVERIFIED": "Ожидает проверки",
         }
         return [
             {
                 **item,
-                "last_error": "Трекер не принял Cookie. Войдите на сайт трекера и импортируйте новую Cookie."
+                "last_error": "Трекер не принял сессию. Проверьте логин и пароль учётной записи."
                 if stored.get(f"{item['id']}:account:1")
                 and stored[f"{item['id']}:account:1"].auth_status == "EXPIRED"
                 else None,
@@ -94,32 +93,10 @@ class ConfigurationService:
             raise ValueError("name")
         if resource == "sessions":
             plugin = self.admin.registry.get(values["plugin"])
-            header = values.get("cookie", "").strip()
-            agent = values.get("user_agent", "")
-            if "\r" in agent or "\n" in agent or len(agent) > 1024:
-                raise ValueError("user_agent")
-            namespace = f"{plugin.manifest.id}:account:1"
-            if not header:
-                with self.db.session() as s:
-                    stored = s.scalar(
-                        select(TrackerSession).where(TrackerSession.namespace == namespace)
-                    )
-                    if stored is None or not stored.encrypted_cookies:
-                        raise ValueError("cookie")
-                if plugin.manifest.id == "nnmclub":
-                    self._save_nnmclub_credentials(
-                        values.get("account_username", ""), values.get("account_password", "")
-                    )
-                SessionStore(self.db, self.secrets).clear(namespace)
-                return 1
-            if "\n" in header or "\r" in header or len(header) > 32768:
-                raise ValueError("cookie")
-            if plugin.manifest.id == "nnmclub":
-                self._save_nnmclub_credentials(
-                    values.get("account_username", ""), values.get("account_password", "")
-                )
-            SessionStore(self.db, self.secrets).import_cookie_header(
-                namespace, header, values.get("user_agent") or None
+            self._save_tracker_credentials(
+                plugin.manifest.id,
+                values.get("account_username", ""),
+                values.get("account_password", ""),
             )
             return 1
 
@@ -238,19 +215,20 @@ class ConfigurationService:
                 return channel.id
         raise ValueError("resource")
 
-    def _save_nnmclub_credentials(self, username: str, password: str) -> None:
-        """Store NNM-Club credentials separately from the encrypted browser session."""
+    def _save_tracker_credentials(self, plugin_id: str, username: str, password: str) -> None:
+        """Store tracker credentials separately from the automatically managed session."""
+        prefix = "nnmclub" if plugin_id == "nnmclub" else f"tracker_{plugin_id}"
         with self.db.session() as s:
-            row = s.get(SystemSetting, "nnmclub_username")
+            row = s.get(SystemSetting, f"{prefix}_username")
             if row is None:
-                s.add(SystemSetting(key="nnmclub_username", value=username.strip()))
+                s.add(SystemSetting(key=f"{prefix}_username", value=username.strip()))
             else:
                 row.value = username.strip()
             if password:
                 encrypted = self.secrets.encrypt(password)
-                secret_row = s.get(SystemSetting, "nnmclub_password_encrypted")
+                secret_row = s.get(SystemSetting, f"{prefix}_password_encrypted")
                 if secret_row is None:
-                    s.add(SystemSetting(key="nnmclub_password_encrypted", value=encrypted))
+                    s.add(SystemSetting(key=f"{prefix}_password_encrypted", value=encrypted))
                 else:
                     secret_row.value = encrypted
 

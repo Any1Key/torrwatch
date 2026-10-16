@@ -6,9 +6,9 @@
 <a class="button" href="/torrents"><svg class="button-icon"><use href="#i-torrent"/></svg> Открыть мониторы</a>
 </header>
 {% if not dashboard.total_monitors %}
-<section class="onboarding"><span class="badge">Начало работы</span><h2>Добавьте первую раздачу</h2><p>Подключите торрент-клиент, импортируйте сессию трекера и добавьте URL конкретной раздачи. После первой проверки здесь появятся реальные показатели и события.</p>
+<section class="onboarding"><span class="badge">Начало работы</span><h2>Добавьте первую раздачу</h2><p>Подключите торрент-клиент, настройте учётную запись трекера и добавьте URL конкретной раздачи. После первой проверки здесь появятся реальные показатели и события.</p>
 <div class="steps">
-{% for href,title,description in [('/configure/clients','1. Торрент-клиент','qBittorrent или Transmission'),('/configure/sessions','2. Сессия трекера','Cookie из браузера'),('/torrents/new','3. Монитор','URL конкретной раздачи'),('/notifications','4. Уведомления','Telegram и webhook')] %}
+{% for href,title,description in [('/configure/clients','1. Торрент-клиент','qBittorrent или Transmission'),('/configure/sessions','2. Учётная запись','Логин и пароль трекера'),('/torrents/new','3. Монитор','URL конкретной раздачи'),('/notifications','4. Уведомления','Telegram и webhook')] %}
 <a class="step" href="{{ href }}"><strong>{{ title }}</strong><span>{{ description }}</span><b>→</b></a>
 {% endfor %}
 </div></section>
