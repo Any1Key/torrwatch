@@ -564,8 +564,8 @@ class MonitorCheckService:
         }
         retryable, status, delay, event_code = mapping[error.code]
         recommendations = {
-            PluginErrorCode.AUTH_REQUIRED: "Проверьте Cookie: войдите на трекер в браузере и импортируйте новую сессию.",
-            PluginErrorCode.AUTH_FAILED: "Проверьте Cookie и User-Agent в разделе «Трекеры и сессии».",
+            PluginErrorCode.AUTH_REQUIRED: "Проверьте логин и пароль трекера. Для NNM-Club и Kinozal worker обновляет сессию через FlareSolverr.",
+            PluginErrorCode.AUTH_FAILED: "Проверьте логин и пароль в разделе «Трекеры и сессии» и повторите проверку.",
             PluginErrorCode.PROXY_ERROR: "Проверьте хост, порт и пароль прокси либо временно отключите профиль.",
             PluginErrorCode.PLUGIN_PARSE_ERROR: "Проверьте доступность страницы и обновите плагин или fixture после изменения разметки.",
             PluginErrorCode.TRACKER_UNAVAILABLE: "Проверьте доступность трекера, DNS и выбранный прокси.",
@@ -575,7 +575,7 @@ class MonitorCheckService:
             PluginErrorCode.UNSUPPORTED_PAGE: "Проверьте, что URL ведёт на страницу конкретной раздачи.",
         }
         return JobExecutionFailure(
-            "Трекер отклонил Cookie. Войдите на сайт и импортируйте новую сессию в разделе «Трекеры и сессии»."
+            "Сессия трекера недействительна. Проверьте логин и пароль в разделе «Трекеры и сессии»."
             if error.code in (PluginErrorCode.AUTH_REQUIRED, PluginErrorCode.AUTH_FAILED)
             else str(error),
             retryable=retryable,
