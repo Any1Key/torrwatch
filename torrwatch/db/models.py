@@ -121,6 +121,7 @@ class ReleaseVersion(Base):
     __tablename__ = "release_versions"
     __table_args__ = (
         UniqueConstraint("monitor_id", "idempotency_key", name="uq_release_monitor_idempotency"),
+        Index("ix_release_versions_monitor_detected", "monitor_id", "detected_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -143,7 +144,10 @@ class ReleaseVersion(Base):
 
 class Event(Base):
     __tablename__ = "events"
-    __table_args__ = (Index("ix_events_monitor_created", "monitor_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_events_monitor_created", "monitor_id", "created_at"),
+        Index("ix_events_created", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     monitor_id: Mapped[int | None] = mapped_column(ForeignKey("monitor_items.id"), index=True)

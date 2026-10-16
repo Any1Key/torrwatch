@@ -394,7 +394,7 @@ async def run_worker(settings: Settings) -> None:
                     stop_event=stop_event,
                 )
             try:
-                await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_heartbeat_seconds)
+                await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_poll_seconds)
             except TimeoutError:
                 continue
     finally:

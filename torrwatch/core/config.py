@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     admin_password: SecretStr | None = None
     session_https_only: bool = False
     session_max_age_seconds: int = Field(default=43_200, ge=300)
+    worker_poll_seconds: int = Field(default=5, ge=1, le=60)
     worker_heartbeat_seconds: int = Field(default=30, ge=5)
     worker_job_lease_seconds: int = Field(default=180, ge=30)
     worker_lease_renewal_seconds: int = Field(default=60, ge=5)

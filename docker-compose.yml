@@ -15,6 +15,7 @@ services:
   web:
     build: .
     image: torrwatch:dev
+    init: true
     command: ["torrwatch-web"]
     env_file: ${TORRWATCH_ENV_FILE:-.env}
     ports:
@@ -22,6 +23,7 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -35,10 +37,12 @@ services:
     build: .
     image: torrwatch:dev
     command: ["torrwatch-worker"]
+    init: true
     env_file: ${TORRWATCH_ENV_FILE:-.env}
     volumes:
       - ./data:/data
     restart: unless-stopped
+    stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
     depends_on:

@@ -12,6 +12,9 @@ RUN uv sync --frozen --no-dev
 
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="torrwatch" \
+      org.opencontainers.image.description="Self-hosted torrent release monitor"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
