@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded',()=>{
- const root=document.documentElement;const body=document.body;const stored=localStorage.getItem('torrwatch-theme')||'light';
+ const root=document.documentElement;const body=document.body;const stored=localStorage.getItem('torrwatch-theme')||'dark';
  const applyTheme=(theme)=>{const value=theme==='dark'?'dark':'light';root.dataset.theme=value;body.classList.toggle('dark-theme',value==='dark');localStorage.setItem('torrwatch-theme',value);const toggle=document.querySelector('[data-theme-toggle]');if(toggle)toggle.textContent=value==='dark'?'Светлая тема':'Тёмная тема'};
  applyTheme(stored);const toggle=document.querySelector('[data-theme-toggle]');if(toggle)toggle.addEventListener('click',()=>applyTheme(root.dataset.theme==='dark'?'light':'dark'));
  const type=document.querySelector("select[name=type]");
