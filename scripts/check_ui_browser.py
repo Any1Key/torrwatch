@@ -159,6 +159,11 @@ def test_browser(artifact_dir: Path) -> None:
                 detail:document.querySelector('.tw-detail').getBoundingClientRect().width
             })""")
             print(f"BROWSER responsive {width}x{height}: {dimensions}", flush=True)
+            if dimensions["scroll"] - dimensions["client"] > 12:
+                offenders = page.evaluate("""() => [...document.querySelectorAll('*')]
+                  .map(el => ({tag:el.tagName.toLowerCase(),cls:typeof el.className==='string'?el.className.slice(0,90):'', text:(el.textContent||'').trim().slice(0,36), left:Math.round(el.getBoundingClientRect().left), right:Math.round(el.getBoundingClientRect().right), width:Math.round(el.getBoundingClientRect().width)}))
+                  .filter(v=>v.right>innerWidth+12).sort((a,b)=>b.right-a.right).slice(0,16)""")
+                print("BROWSER OVERFLOW ELEMENTS:", offenders, flush=True)
             assert dimensions["scroll"] - dimensions["client"] <= 12, f"Horizontal page overflow at {width}"
             assert dimensions["detail"] > 280, f"Detail panel too narrow at {width}"
             page.screenshot(path=str(artifact_dir / f"monitors-{width}.png"), full_page=True)
