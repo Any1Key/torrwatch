@@ -18,3 +18,62 @@ body.tw-app{background:#07111d;color:#e7f0ff;font:14px/1.45 system-ui,-apple-sys
   .tw-sort { margin-left: auto; }
   .tw-sort select { width: 135px; max-width: 135px; }
 }
+
+/* Cohesive optional light mode for the monitor workspace. No external artwork. */
+:root[data-theme="light"] body.tw-monitors .tw-shell{
+  --tw-border:#d7e3ef;--tw-blue:#027dba;--tw-muted:#667c98;--tw-surface:#ffffff;
+  color:#25364c
+}
+:root[data-theme="light"] body.tw-monitors .tw-search,
+:root[data-theme="light"] body.tw-monitors .tw-add,
+:root[data-theme="light"] body.tw-monitors .tw-sort select,
+:root[data-theme="light"] body.tw-monitors .tw-filters button,
+:root[data-theme="light"] body.tw-monitors .tw-pause{
+  background:#fff!important;color:#263c58!important;border-color:#d3e1ee!important;
+  box-shadow:none!important
+}
+:root[data-theme="light"] body.tw-monitors .tw-search input{color:#1f344c}
+:root[data-theme="light"] body.tw-monitors .tw-search input::placeholder{color:#6e85a0}
+:root[data-theme="light"] body.tw-monitors .tw-search kbd{color:#617891;border-color:#d5e1ee}
+:root[data-theme="light"] body.tw-monitors .tw-heading h1,
+:root[data-theme="light"] body.tw-monitors .tw-detail-heading h2,
+:root[data-theme="light"] body.tw-monitors .tw-box-title,
+:root[data-theme="light"] body.tw-monitors .tw-actions h3{color:#1b2e48}
+:root[data-theme="light"] body.tw-monitors .tw-filters button.is-active{background:#dcefff!important;color:#075e91!important;border-color:#84bfe9!important}
+:root[data-theme="light"] body.tw-monitors .tw-filters b{background:#dcefff}
+:root[data-theme="light"] body.tw-monitors .tw-monitor{background:#fff;color:#203149!important;border-color:#dce5ef}
+:root[data-theme="light"] body.tw-monitors .tw-monitor:hover{background:#f2f8ff;border-color:#80bdea}
+:root[data-theme="light"] body.tw-monitors .tw-monitor.is-selected{background:#e8f5ff;border-color:#199be0;box-shadow:inset 0 0 0 1px #77caff}
+:root[data-theme="light"] body.tw-monitors .tw-item-icon,
+:root[data-theme="light"] body.tw-monitors .tw-big-icon{background:#e9f2fc;color:#47729b;border-color:#d4e4f4}
+:root[data-theme="light"] body.tw-monitors .tw-name small,
+:root[data-theme="light"] body.tw-monitors .tw-checked,
+:root[data-theme="light"] body.tw-monitors .tw-checked small,
+:root[data-theme="light"] body.tw-monitors .tw-checked em,
+:root[data-theme="light"] body.tw-monitors .tw-detail-heading p{color:#687e9b}
+:root[data-theme="light"] body.tw-monitors .tw-detail{background:#fff;border-color:#d8e5f1}
+:root[data-theme="light"] body.tw-monitors .tw-tabs{border-color:#d9e5f1}
+:root[data-theme="light"] body.tw-monitors .tw-tabs button{color:#6c819a!important}
+:root[data-theme="light"] body.tw-monitors .tw-tabs button.is-active{background:#e6f4fe!important;color:#0677b9!important}
+:root[data-theme="light"] body.tw-monitors .tw-stats>div,
+:root[data-theme="light"] body.tw-monitors .tw-box,
+:root[data-theme="light"] body.tw-monitors .tw-actions{background:#f6faff;border-color:#dae8f5;color:#203149}
+:root[data-theme="light"] body.tw-monitors .tw-stats svg{stroke:#5581a8}
+:root[data-theme="light"] body.tw-monitors .tw-stats small,
+:root[data-theme="light"] body.tw-monitors .tw-box small,
+:root[data-theme="light"] body.tw-monitors .tw-box p,
+:root[data-theme="light"] body.tw-monitors .tw-version small{color:#70839e}
+:root[data-theme="light"] body.tw-monitors .tw-info span:first-child,
+:root[data-theme="light"] body.tw-monitors .tw-release{color:#253b54}
+:root[data-theme="light"] body.tw-monitors .tw-link-button,
+:root[data-theme="light"] body.tw-monitors .tw-actions a,
+:root[data-theme="light"] body.tw-monitors .tw-actions form button{background:#e9f2fd;color:#26516f!important;border-color:#d8e5f4}
+:root[data-theme="light"] body.tw-monitors .tw-actions a:hover,
+:root[data-theme="light"] body.tw-monitors .tw-actions form button:hover{background:#d8eafa;color:#1e4360!important}
+:root[data-theme="light"] body.tw-monitors .tw-actions a.tw-delete{color:#b43d51!important}
+:root[data-theme="light"] body.tw-monitors .tw-timeline,
+:root[data-theme="light"] body.tw-monitors .tw-version,
+:root[data-theme="light"] body.tw-monitors .tw-event{border-color:#c5e1ef}
+:root[data-theme="light"] body.tw-monitors .tw-green{color:#117d59!important}
+:root[data-theme="light"] body.tw-monitors .tw-amber{color:#a46314!important}
+:root[data-theme="light"] body.tw-monitors .tw-empty{border-color:#c8dae9;color:#4b6580}
