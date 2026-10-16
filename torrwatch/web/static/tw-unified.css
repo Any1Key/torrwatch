@@ -265,5 +265,16 @@ body.tw-login .login-card-error{background:#3d2233;border-color:#784355;color:#f
     min-height: 0;
     border-right: 0;
   }
-  body.tw-app .sidebar.is-open { display: flex; }
+body.tw-app .sidebar.is-open { display: flex; }
 }
+
+body.tw-app .tracker-list{display:grid;gap:8px;margin:0 0 18px}
+body.tw-app .tracker-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(190px,1fr) 70px 24px;align-items:center;gap:18px;padding:15px 18px;background:var(--surface);border:1px solid var(--line);border-radius:11px;color:var(--ink);box-shadow:0 3px 12px #253b6810;transition:border-color .16s,box-shadow .16s,transform .16s}
+body.tw-app .tracker-row:hover{border-color:#9bb0ff;box-shadow:var(--shadow-hover);transform:translateY(-1px)}
+body.tw-app .tracker-main,body.tw-app .tracker-meta{display:grid;gap:4px;min-width:0}
+body.tw-app .tracker-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+body.tw-app .tracker-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+body.tw-app .tracker-meta{justify-items:start}
+body.tw-app .tracker-version{color:var(--muted);font-size:11px}
+body.tw-app .tracker-arrow{color:var(--brand);font-size:20px;text-align:right}
+@media(max-width:650px){body.tw-app .tracker-row{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px}.tracker-main{grid-column:1}.tracker-meta{grid-column:1}.tracker-version{grid-column:2;grid-row:1;color:var(--muted)}.tracker-arrow{grid-column:2;grid-row:2}.tracker-meta .badge{font-size:10px}}

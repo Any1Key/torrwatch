@@ -8,8 +8,12 @@
   </div>
 </header>
 {% if resource == 'sessions' %}
-<div class="cards">
-  {% for row in rows %}<section class="card"><span class="badge">{{ row.status }}</span><h2>{{ row.name }}</h2><p>Версия {{ row.version }}</p><p class="muted">{{ row.domains|join(', ') }}</p><p>{{ 'Авторизация проверяется при проверке торрента. Сетевой сбой не означает проблему учётной записи.' if row.configured else 'Настройте логин и пароль, чтобы worker мог открыть раздачу.' }}</p>{% if row.last_error %}<p class="alert">Последняя записанная ошибка: {{ row.last_error }}</p>{% endif %}<a href="/configure/sessions?plugin={{ row.id }}">Настроить учётную запись →</a></section>{% endfor %}
+<div class="tracker-list">
+  {% for row in rows %}<a class="tracker-row" href="/configure/sessions?plugin={{ row.id }}">
+    <span class="tracker-main"><strong>{{ row.name }}</strong><small>{{ row.domains|join(', ') }}</small></span>
+    <span class="tracker-meta"><span class="badge">{{ row.status }}</span><small>{{ 'Учётная запись настроена' if row.configured else 'Требуется настройка' }}</small></span>
+    <span class="tracker-version">v{{ row.version }}</span><span class="tracker-arrow">→</span>
+  </a>{% endfor %}
 </div>
 {% elif rows %}
 <div class="card table-wrap"><table><thead><tr><th>Название</th><th>Тип</th><th>Состояние</th><th>Действия</th></tr></thead><tbody>
