@@ -113,6 +113,8 @@ docker compose down
 
 Для NNM-Club ручная передача Cookie, User-Agent и браузерное расширение не требуются. Worker сам обновляет техническую сессию через FlareSolverr.
 
+Kinozal поддерживает ссылки с доменов `kinozal.tv`, `kinozal.guru` и `kinozal.me`.
+
 ## Как работает мониторинг
 
 1. Worker получает задание проверки из очереди.

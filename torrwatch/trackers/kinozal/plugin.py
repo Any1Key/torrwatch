@@ -28,10 +28,17 @@ class KinozalPlugin:
     manifest = TrackerManifest(
         id="kinozal",
         display_name="Kinozal",
-        version="1.0.0",
+        version="1.0.1",
         plugin_api_version=PLUGIN_API_VERSION,
         core_min_version="0.1.0",
-        domains=("kinozal.tv", "dl.kinozal.tv", "kinozal.guru", "dl.kinozal.guru"),
+        domains=(
+            "kinozal.tv",
+            "dl.kinozal.tv",
+            "kinozal.guru",
+            "dl.kinozal.guru",
+            "kinozal.me",
+            "dl.kinozal.me",
+        ),
         auth_modes=(AuthenticationMode.COOKIE,),
         capabilities=(PluginCapability.CHECK, PluginCapability.DOWNLOAD),
     )
@@ -46,6 +53,9 @@ class KinozalPlugin:
             "www.kinozal.guru",
             "dl.kinozal.tv",
             "dl.kinozal.guru",
+            "kinozal.me",
+            "www.kinozal.me",
+            "dl.kinozal.me",
         }:
             return None
         if parsed.path.rstrip("/") != "/details.php":
@@ -70,7 +80,12 @@ class KinozalPlugin:
             raise TrackerPluginError(
                 PluginErrorCode.INVALID_TARGET, "Unsupported Kinozal release URL."
             )
-        return urlunsplit(("https", "dl.kinozal.guru", "/details.php", f"id={release_id}", ""))
+        host = urlsplit(url).hostname or ""
+        if host in {"kinozal.me", "www.kinozal.me", "dl.kinozal.me"}:
+            canonical_host = "kinozal.me" if host == "www.kinozal.me" else host
+        else:
+            canonical_host = "dl.kinozal.guru"
+        return urlunsplit(("https", canonical_host, "/details.php", f"id={release_id}", ""))
 
     def extract_external_id(self, url: str) -> str | None:
         return self._release_id(url)
