@@ -340,6 +340,7 @@ async def run_worker(settings: Settings) -> None:
     )
     checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
     last_session_refresh = 0.0
+    last_credentials_revision = ""
 
     async def monitor_handler(job: Job) -> None:
         if job.job_type == JobType.MONITOR_CHECK:
@@ -355,6 +356,10 @@ async def run_worker(settings: Settings) -> None:
         while not stop_event.is_set():
             now_monotonic = asyncio.get_running_loop().time()
             automation = _flaresolverr_config(database, settings, secrets)
+            credentials_revision = str(automation["credentials_revision"])
+            if credentials_revision != last_credentials_revision:
+                last_session_refresh = 0.0
+                last_credentials_revision = credentials_revision
             solver = FlareSolverrClient(automation["url"]) if automation["enabled"] and automation["url"] else None
             if solver and automation["username"] and automation["password"] and (
                 now_monotonic - last_session_refresh >= automation["refresh_seconds"]
@@ -437,10 +442,8 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
     """Read UI overrides, falling back to bootstrap environment settings."""
     try:
         with database.session() as session:
-            values = {
-                row.key: row.value
-                for row in session.scalars(select(SystemSetting)).all()
-                if row.key in {
+            rows = session.scalars(select(SystemSetting)).all()
+            relevant_keys = {
                     "flaresolverr_url",
                     "flaresolverr_enabled",
                     "flaresolverr_refresh_seconds",
@@ -448,10 +451,17 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
                     "nnmclub_password_encrypted",
                     "tracker_kinozal_username",
                     "tracker_kinozal_password_encrypted",
-                }
             }
+            relevant = [row for row in rows if row.key in relevant_keys]
+            values = {row.key: row.value for row in relevant}
+            credentials_revision = "|".join(
+                f"{row.key}:{row.updated_at.isoformat()}"
+                for row in sorted(relevant, key=lambda item: item.key)
+                if "username" in row.key or "password" in row.key
+            )
     except Exception:
         values = {}
+        credentials_revision = ""
     password = settings.nnmclub_password.get_secret_value() if settings.nnmclub_password else ""
     encrypted = values.get("nnmclub_password_encrypted")
     if encrypted:
@@ -473,6 +483,7 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
         "kinozal_password": _decrypt_optional(
             secrets, values.get("tracker_kinozal_password_encrypted")
         ),
+        "credentials_revision": credentials_revision,
     }
 
 
