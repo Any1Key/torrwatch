@@ -595,6 +595,20 @@ def form(
         for key, _, kind, _ in FIELDS[resource]
         if kind != "password"
     }
+    account_password_value = ""
+    if resource == "sessions":
+        encrypted_password = _setting(request, "nnmclub_password_encrypted")
+        try:
+            if encrypted_password:
+                account_password_value = SecretBox(
+                    request.app.state.settings.resolved_master_key_file
+                ).decrypt(encrypted_password)
+            elif request.app.state.settings.nnmclub_password:
+                account_password_value = (
+                    request.app.state.settings.nnmclub_password.get_secret_value()
+                )
+        except SecretKeyError:
+            account_password_value = ""
     return render(
         request,
         "setup_form.html",
@@ -608,7 +622,11 @@ def form(
         clients=svc.admin.resource("clients"),
         proxies=svc.admin.resource("proxies"),
         paths=svc.admin.resource("paths"),
-        account_password_configured=bool(_setting(request, "nnmclub_password_encrypted")),
+        account_password_configured=bool(
+            _setting(request, "nnmclub_password_encrypted")
+            or request.app.state.settings.nnmclub_password
+        ),
+        account_password_value=account_password_value,
         status_code=422 if error else 200,
     )
 
