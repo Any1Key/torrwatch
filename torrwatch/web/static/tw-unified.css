@@ -255,3 +255,15 @@ body.tw-login .login-card-error{background:#3d2233;border-color:#784355;color:#f
  body.tw-app .steps{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){body.tw-app *,body.tw-login *{transition:none!important;animation:none!important}}
+
+/* The legacy mobile menu is hidden until the toggle is activated. */
+@media (max-width: 760px) {
+  body.tw-app .sidebar {
+    display: none;
+    position: static;
+    width: auto;
+    min-height: 0;
+    border-right: 0;
+  }
+  body.tw-app .sidebar.is-open { display: flex; }
+}
