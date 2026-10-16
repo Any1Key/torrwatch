@@ -119,6 +119,16 @@ class FlareSolverrClient:
             status=int(solution.get("status") or 0),
         )
 
+    async def destroy_session(self, session: str) -> None:
+        """Drop a possibly stale browser session before a fresh login flow."""
+        payload = {"cmd": "sessions.destroy", "session": session}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(self.endpoint, json=payload)
+                response.raise_for_status()
+        except (httpx.HTTPError, ValueError) as error:
+            raise FlareSolverrError("FlareSolverr is unavailable.") from error
+
 
 def _cookie_payload(session: TrackerSession, secrets: SecretBox) -> list[dict[str, object]]:
     if not session.encrypted_cookies:
@@ -130,6 +140,15 @@ def _cookie_payload(session: TrackerSession, secrets: SecretBox) -> list[dict[st
 def _is_login_page(html: str) -> bool:
     lowered = html.lower().replace(" ", "")
     return "name=\"password\"" in lowered or "name='password'" in lowered
+
+
+def _is_cloudflare_challenge(html: str) -> bool:
+    lowered = html.lower()
+    return (
+        "challenge-platform" in lowered
+        or "just a moment" in lowered
+        or "enable javascript and cookies to continue" in lowered
+    )
 
 
 async def refresh_nnmclub(
@@ -185,15 +204,20 @@ async def refresh_kinozal(
 ) -> None:
     """Refresh Kinozal Cloudflare and account session through FlareSolverr."""
     namespace = "kinozal:account:1"
-    # The home page can leave FlareSolverr waiting on a never-ending
-    # challenge. The dedicated login endpoint is stable and exposes the
-    # same account form needed to refresh the session.
+    home = "https://kinozal.me/"
     target = "https://kinozal.me/login.php"
     with database.session() as session:
         stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
         cookies = _cookie_payload(stored, secrets) if stored else []
     solver_session = "torrwatch-kinozal-account-1"
-    result = await client.request(url=target, session=solver_session, cookies=cookies)
+    # A previous browser session can retain a failed Cloudflare challenge.
+    # Start clean, then warm up the domain before requesting the login form.
+    await client.destroy_session(solver_session)
+    result = await client.request(url=home, session=solver_session, cookies=cookies)
+    if _is_cloudflare_challenge(result.html) or not _is_login_page(result.html):
+        result = await client.request(
+            url=target, session=solver_session, cookies=result.cookies
+        )
     if _is_login_page(result.html):
         parser = _LoginFormParser()
         parser.feed(result.html)
@@ -206,8 +230,13 @@ async def refresh_kinozal(
             cookies=result.cookies,
             post_data=urlencode(fields),
         )
-        result = await client.request(url=target, session=solver_session, cookies=result.cookies)
-    if _is_login_page(result.html) or result.status >= 400:
+        # The POST commonly redirects to takelogin.php and triggers a new
+        # Cloudflare check. Request the site again so FlareSolverr can finish
+        # that challenge and return the authenticated browser state.
+        result = await client.request(url=home, session=solver_session, cookies=result.cookies)
+        if _is_cloudflare_challenge(result.html):
+            result = await client.request(url=target, session=solver_session, cookies=result.cookies)
+    if _is_login_page(result.html) or result.status >= 400 or _is_cloudflare_challenge(result.html):
         raise FlareSolverrError("Kinozal login did not produce an authenticated page.")
     parsed = httpx.Cookies()
     for item in result.cookies:

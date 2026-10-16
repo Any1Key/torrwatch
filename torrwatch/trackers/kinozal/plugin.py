@@ -109,7 +109,7 @@ class KinozalPlugin:
             raise _transport_error(error) from error
         _status(response.status_code)
         try:
-            parsed = parse_release_page(response.text, target.canonical_url, release_id)
+            parsed = parse_release_page(response.body, target.canonical_url, release_id)
         except KinozalAuthenticationRequired as error:
             raise TrackerPluginError(
                 PluginErrorCode.AUTH_REQUIRED, "Kinozal session is required."

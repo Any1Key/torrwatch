@@ -40,7 +40,15 @@ class _KinozalDocument(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {key.lower(): value or "" for key, value in attrs}
         element_id = values.get("id", "").lower()
-        if tag in {"h1", "h2"} and element_id in {"release-title", "details-title"}:
+        # Kinozal.ME currently renders the title as a plain h1 with an inner
+        # link (class="r0"), without the ids used by older layouts.
+        if tag == "h1" and (
+            element_id in {"release-title", "details-title"}
+            or values.get("class", "") == "r0"
+            or not element_id
+        ):
+            self._capture_title = True
+        elif tag == "h2" and element_id in {"release-title", "details-title"}:
             self._capture_title = True
         if tag == "a":
             href = values.get("href", "")
@@ -80,7 +88,18 @@ def _timestamp(value: str) -> datetime | None:
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
-def parse_release_page(payload: str, canonical_url: str, release_id: str) -> ParsedKinozalRelease:
+def _decode_payload(payload: bytes | str) -> str:
+    if isinstance(payload, str):
+        return payload
+    lowered = payload[:4096].lower()
+    encoding = "cp1251" if b"windows-1251" in lowered or b"charset=1251" in lowered else "utf-8"
+    return payload.decode(encoding, errors="replace")
+
+
+def parse_release_page(
+    payload: bytes | str, canonical_url: str, release_id: str
+) -> ParsedKinozalRelease:
+    payload = _decode_payload(payload)
     parser = _KinozalDocument()
     parser.feed(payload)
     parser.close()
@@ -93,6 +112,10 @@ def parse_release_page(payload: str, canonical_url: str, release_id: str) -> Par
         for href in parser.downloads
         if parse_qs(urlsplit(href).query).get("id") == [release_id]
     ]
+    # On Kinozal.ME every details page uses the same deterministic download
+    # endpoint, even when the link is rendered differently by the theme.
+    if not downloads:
+        downloads = [f"/download.php?id={release_id}"]
     if len(downloads) != 1:
         raise KinozalParseError("Kinozal torrent download reference is missing.")
     updated = next((item for raw in parser.timestamps if (item := _timestamp(raw))), None)
