@@ -33,23 +33,42 @@ class SolverResult:
 class _LoginFormParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.action = ""
-        self.fields: dict[str, str] = {}
-        self._in_form = False
+        self.forms: list[dict[str, object]] = []
+        self._current: dict[str, object] | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = dict(attrs)
-        if tag == "form" and not self._in_form:
-            self._in_form = True
-            self.action = values.get("action") or ""
-        elif tag == "input" and self._in_form:
+        if tag == "form" and self._current is None:
+            self._current = {"action": values.get("action") or "", "fields": {}}
+        elif tag == "input" and self._current is not None:
             name = values.get("name")
             if name:
-                self.fields[name] = values.get("value") or ""
+                fields = self._current["fields"]
+                if isinstance(fields, dict):
+                    fields[name] = values.get("value") or ""
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == "form" and self._in_form:
-            self._in_form = False
+        if tag == "form" and self._current is not None:
+            self.forms.append(self._current)
+            self._current = None
+
+    @property
+    def action(self) -> str:
+        form = self._login_form()
+        return str(form.get("action") or "") if form else ""
+
+    @property
+    def fields(self) -> dict[str, str]:
+        form = self._login_form()
+        fields = form.get("fields") if form else {}
+        return dict(fields) if isinstance(fields, dict) else {}
+
+    def _login_form(self) -> dict[str, object] | None:
+        for form in self.forms:
+            fields = form.get("fields")
+            if isinstance(fields, dict) and "password" in fields:
+                return form
+        return self.forms[0] if self.forms else None
 
 
 class FlareSolverrClient:
@@ -155,3 +174,51 @@ async def refresh_nnmclub(
         if stored is not None:
             stored.auth_status = "WORKING"
     logger.info("Automatic NNM-Club session refresh completed; cookies=%d", len(list(parsed.jar)))
+
+
+async def refresh_kinozal(
+    database: Database,
+    secrets: SecretBox,
+    client: FlareSolverrClient,
+    username: str,
+    password: str,
+) -> None:
+    """Refresh Kinozal Cloudflare and account session through FlareSolverr."""
+    namespace = "kinozal:account:1"
+    # The home page can leave FlareSolverr waiting on a never-ending
+    # challenge. The dedicated login endpoint is stable and exposes the
+    # same account form needed to refresh the session.
+    target = "https://kinozal.me/login.php"
+    with database.session() as session:
+        stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
+        cookies = _cookie_payload(stored, secrets) if stored else []
+    solver_session = "torrwatch-kinozal-account-1"
+    result = await client.request(url=target, session=solver_session, cookies=cookies)
+    if _is_login_page(result.html):
+        parser = _LoginFormParser()
+        parser.feed(result.html)
+        action = urljoin(target, parser.action or "/takelogin.php")
+        fields = dict(parser.fields)
+        fields.update({"username": username, "password": password})
+        result = await client.request(
+            url=action,
+            session=solver_session,
+            cookies=result.cookies,
+            post_data=urlencode(fields),
+        )
+        result = await client.request(url=target, session=solver_session, cookies=result.cookies)
+    if _is_login_page(result.html) or result.status >= 400:
+        raise FlareSolverrError("Kinozal login did not produce an authenticated page.")
+    parsed = httpx.Cookies()
+    for item in result.cookies:
+        name, value = item.get("name"), item.get("value")
+        domain = item.get("domain") or ".kinozal.me"
+        path = item.get("path") or "/"
+        if isinstance(name, str) and isinstance(value, str):
+            parsed.set(name, value, domain=str(domain), path=str(path))
+    SessionStore(database, secrets).save(namespace, parsed, result.user_agent, authenticated=True)
+    with database.session() as session:
+        stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
+        if stored is not None:
+            stored.auth_status = "WORKING"
+    logger.info("Automatic Kinozal session refresh completed; cookies=%d", len(list(parsed.jar)))

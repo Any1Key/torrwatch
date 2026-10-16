@@ -25,7 +25,12 @@ from torrwatch.notifications.service import NotificationRepository, Notification
 from torrwatch.notifications.types import NotificationError, NotificationErrorCode
 from torrwatch.services.admin_jobs import AdminJobService
 from torrwatch.services.delivery import DeliveryRepository, DeliveryService
-from torrwatch.services.flaresolverr import FlareSolverrClient, FlareSolverrError, refresh_nnmclub
+from torrwatch.services.flaresolverr import (
+    FlareSolverrClient,
+    FlareSolverrError,
+    refresh_kinozal,
+    refresh_nnmclub,
+)
 from torrwatch.services.jobs import (
     JobExecutionFailure,
     JobRepository,
@@ -355,18 +360,29 @@ async def run_worker(settings: Settings) -> None:
                 now_monotonic - last_session_refresh >= automation["refresh_seconds"]
             ):
                 last_session_refresh = now_monotonic
-                try:
-                    await refresh_nnmclub(
-                        database,
-                        secrets,
-                        solver,
-                        automation["username"],
-                        automation["password"],
-                    )
-                except FlareSolverrError as error:
-                    logger.warning("Automatic NNM-Club session refresh failed: %s", error)
-                else:
-                    logger.info("Automatic tracker session refresh finished.")
+                if automation["username"] and automation["password"]:
+                    try:
+                        await refresh_nnmclub(
+                            database,
+                            secrets,
+                            solver,
+                            automation["username"],
+                            automation["password"],
+                        )
+                    except FlareSolverrError as error:
+                        logger.warning("Automatic NNM-Club session refresh failed: %s", error)
+                if automation["kinozal_username"] and automation["kinozal_password"]:
+                    try:
+                        await refresh_kinozal(
+                            database,
+                            secrets,
+                            solver,
+                            automation["kinozal_username"],
+                            automation["kinozal_password"],
+                        )
+                    except FlareSolverrError as error:
+                        logger.warning("Automatic Kinozal session refresh failed: %s", error)
+                logger.info("Automatic tracker session refresh finished.")
             await worker_cycle(
                 database,
                 identity,
@@ -430,6 +446,8 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
                     "flaresolverr_refresh_seconds",
                     "nnmclub_username",
                     "nnmclub_password_encrypted",
+                    "tracker_kinozal_username",
+                    "tracker_kinozal_password_encrypted",
                 }
             }
     except Exception:
@@ -451,4 +469,18 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
         "refresh_seconds": refresh_seconds,
         "username": values.get("nnmclub_username") or settings.nnmclub_username,
         "password": password,
+        "kinozal_username": values.get("tracker_kinozal_username") or "",
+        "kinozal_password": _decrypt_optional(
+            secrets, values.get("tracker_kinozal_password_encrypted")
+        ),
     }
+
+
+def _decrypt_optional(secrets: SecretBox, encrypted: str | None) -> str:
+    if not encrypted:
+        return ""
+    try:
+        return secrets.decrypt(encrypted)
+    except Exception:
+        logger.warning("Stored tracker password cannot be decrypted.")
+        return ""

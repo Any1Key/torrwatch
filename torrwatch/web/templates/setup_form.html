@@ -4,7 +4,7 @@
   <div>
     <p class="eyebrow">НАСТРОЙКА</p>
     <h1>{{ 'Редактировать' if ident else 'Настроить' }} {{ {'monitors':'монитор','sessions':'учётную запись трекера','clients':'торрент-клиент','proxies':'прокси','paths':'путь хранения','notifications':'уведомление'}[resource] }}</h1>
-    <p>{% if resource == 'sessions' %}Данные выбранного трекера. Логин и пароль хранятся зашифрованными, а техническая сессия для NNM-Club обновляется через FlareSolverr.{% else %}Секретные поля хранятся зашифрованными.{% endif %}</p>
+    <p>{% if resource == 'sessions' %}Данные выбранного трекера. Логин и пароль хранятся зашифрованными, а техническая сессия NNM-Club и Kinozal обновляется через FlareSolverr.{% else %}Секретные поля хранятся зашифрованными.{% endif %}</p>
   </div>
 </header>
 <form class="card form-card" method="post" action="/configure/{{ resource }}{% if ident %}/{{ ident }}{% endif %}">
