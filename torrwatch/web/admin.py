@@ -524,12 +524,12 @@ def form(
             "session": "shared",
             "events": "UPDATE_DETECTED,DELIVERY_SUCCESS,DELIVERY_FAILED",
         }
+        if resource == "sessions":
+            values["account_username"] = _setting(request, "nnmclub_username") or ""
         if resource == "sessions" and selected_plugin:
             values["plugin"] = selected_plugin
             try:
                 tracker = request.app.state.plugin_registry.get(selected_plugin)
-                if tracker.manifest.id == "nnmclub":
-                    values["account_username"] = _setting(request, "nnmclub_username") or ""
                 cookies, user_agent = SessionStore(
                     request.app.state.database,
                     SecretBox(request.app.state.settings.resolved_master_key_file),
