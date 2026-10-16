@@ -1,22 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="page-head"><div><p class="eyebrow">НАСТРОЙКА</p><h1>{{ 'Редактировать' if ident else 'Добавить' }} {{ {'monitors':'монитор','sessions':'учётную запись трекера','clients':'торрент-клиент','proxies':'прокси','paths':'путь хранения','notifications':'уведомление'}[resource] }}</h1><p>Логин и пароль учётной записи хранятся зашифрованными. Для NNM-Club сессия и технические данные обновляются автоматически через FlareSolverr.</p></div></header>
+<header class="page-head">
+  <div>
+    <p class="eyebrow">НАСТРОЙКА</p>
+    <h1>{{ 'Редактировать' if ident else 'Настроить' }} {{ {'monitors':'монитор','sessions':'учётную запись трекера','clients':'торрент-клиент','proxies':'прокси','paths':'путь хранения','notifications':'уведомление'}[resource] }}</h1>
+    <p>{% if resource == 'sessions' %}Данные выбранного трекера. Логин и пароль хранятся зашифрованными, а техническая сессия для NNM-Club обновляется через FlareSolverr.{% else %}Секретные поля хранятся зашифрованными.{% endif %}</p>
+  </div>
+</header>
 <form class="card form-card" method="post" action="/configure/{{ resource }}{% if ident %}/{{ ident }}{% endif %}">
-<input type="hidden" name="csrf" value="{{ csrf_token }}">
-{% if error %}<div class="alert" role="alert" id="form-error">{{ error }}</div>{% endif %}
-{% for key,label,kind,help in fields %}
-<div class="field" data-field="{{ key }}"><label for="{{ key }}">{{ label }}{% if key in ['type','plugin','path'] or (key=='name' and resource != 'monitors') %} <span aria-label="обязательно">*</span>{% endif %}</label>
-{% if kind.startswith('select:') or kind in ['plugins','clients','proxies','paths'] %}
-<select id="{{ key }}" name="{{ key }}" aria-describedby="help-{{ key }}">
-{% if kind.startswith('select:') %}{% set option_labels={'QBITTORRENT':'qBittorrent','TRANSMISSION':'Transmission','DIRECT':'Прямое соединение','HTTP':'HTTP-прокси','SOCKS5':'SOCKS5-прокси','DISABLED':'Не обходить прокси','PROFILE':'Резервный профиль','TELEGRAM':'Telegram','WEBHOOK':'Webhook'} %}{% for option in kind[7:].split(',') %}<option value="{{ option }}" {% if values.get(key)==option %}selected{% endif %}>{{ option_labels.get(option,option) }}</option>{% endfor %}
-{% else %}{% if kind != 'plugins' %}<option value="">Не выбран</option>{% endif %}{% for option in plugins if kind == 'plugins' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}</option>{% endfor %}{% for option in clients if kind == 'clients' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}{% if not option.enabled %} · выключен{% endif %}</option>{% endfor %}{% for option in proxies if kind == 'proxies' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}</option>{% endfor %}{% for option in paths if kind == 'paths' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }} — {{ option.path }}{% if not option.enabled %} · выключен{% endif %}</option>{% endfor %}{% endif %}
-</select>
-{% elif kind == 'checkbox' %}<input type="checkbox" id="{{ key }}" name="{{ key }}" {% if values.get(key)=='on' %}checked{% endif %}>
-{% else %}<span class="input-wrap"><input id="{{ key }}" name="{{ key }}" type="{{ kind }}" {% if kind != 'password' %}value="{{ values.get(key,'') }}"{% else %}value="{{ account_password_value if key == 'account_password' else '' }}" autocomplete="{{ 'current-password' if key == 'account_password' else 'new-password' }}"{% endif %} {% if resource == 'monitors' and key == 'name' %}readonly{% endif %} {% if key == 'path' or (key=='url' and resource in ['monitors','clients']) %}required{% endif %} {% if key=='interval_seconds' %}min="300" data-duration{% endif %} aria-describedby="help-{{ key }}">{% if kind == 'password' %}<button class="reveal" type="button" data-reveal="{{ key }}">Показать</button>{% endif %}</span>{% if key == 'interval_seconds' %}<output class="duration-preview" data-duration-preview></output>{% endif %}{% endif %}
-<small id="help-{{ key }}">{{ help }}</small>{% if key == 'account_password' and account_password_configured %}<small>Пароль уже сохранён. Оставьте поле пустым, если менять его не нужно.</small>{% endif %}{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}</div>
-{% endfor %}
-{% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
-<footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  {% if error %}<div class="alert" role="alert" id="form-error">{{ error }}</div>{% endif %}
+  {% for key,label,kind,help in fields %}
+  <div class="field" data-field="{{ key }}">
+    <label for="{{ key }}">{{ label }}{% if key in ['type','plugin','path'] or (key=='name' and resource != 'monitors') %} <span aria-label="обязательно">*</span>{% endif %}</label>
+    {% if resource == 'sessions' and key == 'plugin' %}
+      <input type="hidden" id="{{ key }}" name="{{ key }}" value="{{ values.get(key,'') }}">
+      <div class="selected-tracker">{% for option in plugins if option.id == values.get(key) %}<strong>{{ option.name }}</strong><small>{{ option.domains|join(', ') }}</small>{% endfor %}</div>
+    {% elif kind.startswith('select:') or kind in ['plugins','clients','proxies','paths'] %}
+      <select id="{{ key }}" name="{{ key }}" aria-describedby="help-{{ key }}">
+        {% if kind.startswith('select:') %}{% set option_labels={'QBITTORRENT':'qBittorrent','TRANSMISSION':'Transmission','DIRECT':'Прямое соединение','HTTP':'HTTP-прокси','SOCKS5':'SOCKS5-прокси','DISABLED':'Не обходить прокси','PROFILE':'Резервный профиль','TELEGRAM':'Telegram','WEBHOOK':'Webhook'} %}{% for option in kind[7:].split(',') %}<option value="{{ option }}" {% if values.get(key)==option %}selected{% endif %}>{{ option_labels.get(option,option) }}</option>{% endfor %}
+        {% else %}{% if kind != 'plugins' %}<option value="">Не выбран</option>{% endif %}{% for option in plugins if kind == 'plugins' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}</option>{% endfor %}{% for option in clients if kind == 'clients' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}{% if not option.enabled %} · выключен{% endif %}</option>{% endfor %}{% for option in proxies if kind == 'proxies' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }}</option>{% endfor %}{% for option in paths if kind == 'paths' %}<option value="{{ option.id }}" {% if values.get(key)==option.id|string %}selected{% endif %}>{{ option.name }} — {{ option.path }}{% if not option.enabled %} · выключен{% endif %}</option>{% endfor %}{% endif %}
+      </select>
+    {% elif kind == 'checkbox' %}
+      <input type="checkbox" id="{{ key }}" name="{{ key }}" {% if values.get(key)=='on' %}checked{% endif %}>
+    {% else %}
+      <span class="input-wrap"><input id="{{ key }}" name="{{ key }}" type="{{ kind }}" {% if kind != 'password' %}value="{{ values.get(key,'') }}"{% else %}value="{{ account_password_value if key == 'account_password' else '' }}" autocomplete="{{ 'current-password' if key == 'account_password' else 'new-password' }}"{% endif %} {% if resource == 'monitors' and key == 'name' %}readonly{% endif %} {% if key == 'path' or (key=='url' and resource in ['monitors','clients']) %}required{% endif %} {% if key=='interval_seconds' %}min="300" data-duration{% endif %} aria-describedby="help-{{ key }}">{% if kind == 'password' %}<button class="reveal" type="button" data-reveal="{{ key }}">Показать</button>{% endif %}</span>{% if key == 'interval_seconds' %}<output class="duration-preview" data-duration-preview></output>{% endif %}
+    {% endif %}
+    <small id="help-{{ key }}">{{ help }}</small>{% if key == 'account_password' and account_password_configured %}<small>Пароль уже сохранён. Оставьте поле пустым, если менять его не нужно.</small>{% endif %}{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}
+  </div>
+  {% endfor %}
+  {% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
+  <footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
 </form>
-{% if resource == 'sessions' %}<script>document.addEventListener('DOMContentLoaded',()=>{const select=document.querySelector('select[name="plugin"]');if(select)select.addEventListener('change',()=>{window.location.href='/configure/sessions?plugin='+encodeURIComponent(select.value)})});</script>{% endif %}
 {% endblock %}

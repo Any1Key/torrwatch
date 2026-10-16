@@ -4,7 +4,7 @@
   <div><p class="eyebrow">ПОДКЛЮЧЕНИЯ</p><h1>{{ section[0] }}</h1><p>{{ section[2] }}</p></div>
   <div class="actions">
     {% if resource == 'sessions' %}<a class="button secondary" href="/integrations">Интеграции</a>{% endif %}
-    <a class="button" href="/configure/{{ resource }}">+ {{ section[1] }}</a>
+    {% if resource != 'sessions' %}<a class="button" href="/configure/{{ resource }}">+ {{ section[1] }}</a>{% endif %}
   </div>
 </header>
 {% if resource == 'sessions' %}

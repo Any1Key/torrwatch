@@ -503,6 +503,8 @@ def edit_monitor(request: Request, ident: int) -> HTMLResponse:
 
 @router.get("/configure/{resource}")
 def new_configuration(request: Request, resource: str, plugin: str | None = None) -> HTMLResponse:
+    if resource == "sessions" and not plugin:
+        return RedirectResponse("/settings/sessions", status_code=303)
     return form(request, resource, selected_plugin=plugin)
 
 
