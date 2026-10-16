@@ -393,12 +393,6 @@ def form(
             "session": "shared",
             "events": "UPDATE_DETECTED,DELIVERY_SUCCESS,DELIVERY_FAILED",
         }
-        if resource == "sessions":
-            values["account_username"] = (
-                _setting(request, "nnmclub_username")
-                or request.app.state.settings.nnmclub_username
-                or ""
-            )
         if resource == "sessions" and selected_plugin:
             values["plugin"] = selected_plugin
         enabled_clients = [row for row in svc.admin.resource("clients") if row.get("enabled")]
@@ -450,25 +444,31 @@ def form(
                         if client:
                             values["username"] = client.username or ""
                             values["tags"] = ",".join(json.loads(client.default_tags_json or "[]"))
-    safe = {
-        key: values.get(key, "")
-        for key, _, kind, _ in FIELDS[resource]
-        if kind != "password"
-    }
     account_password_value = ""
+    account_prefix = ""
     if resource == "sessions":
-        encrypted_password = _setting(request, "nnmclub_password_encrypted")
+        plugin_id = str(values.get("plugin", "")).strip()
+        account_prefix = "nnmclub" if plugin_id == "nnmclub" else f"tracker_{plugin_id}"
+        values["account_username"] = _setting(request, f"{account_prefix}_username") or ""
+        if plugin_id == "nnmclub" and not values["account_username"]:
+            values["account_username"] = request.app.state.settings.nnmclub_username or ""
+        encrypted_password = _setting(request, f"{account_prefix}_password_encrypted")
         try:
             if encrypted_password:
                 account_password_value = SecretBox(
                     request.app.state.settings.resolved_master_key_file
                 ).decrypt(encrypted_password)
-            elif request.app.state.settings.nnmclub_password:
+            elif plugin_id == "nnmclub" and request.app.state.settings.nnmclub_password:
                 account_password_value = (
                     request.app.state.settings.nnmclub_password.get_secret_value()
                 )
         except SecretKeyError:
             account_password_value = ""
+    safe = {
+        key: values.get(key, "")
+        for key, _, kind, _ in FIELDS[resource]
+        if kind != "password"
+    }
     return render(
         request,
         "setup_form.html",
@@ -483,8 +483,8 @@ def form(
         proxies=svc.admin.resource("proxies"),
         paths=svc.admin.resource("paths"),
         account_password_configured=bool(
-            _setting(request, "nnmclub_password_encrypted")
-            or request.app.state.settings.nnmclub_password
+            _setting(request, f"{account_prefix}_password_encrypted")
+            or (resource == "sessions" and values.get("plugin") == "nnmclub" and request.app.state.settings.nnmclub_password)
         ),
         account_password_value=account_password_value,
         status_code=422 if error else 200,

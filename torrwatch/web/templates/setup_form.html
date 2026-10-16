@@ -18,4 +18,5 @@
 {% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
 <footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
 </form>
+{% if resource == 'sessions' %}<script>document.addEventListener('DOMContentLoaded',()=>{const select=document.querySelector('select[name="plugin"]');if(select)select.addEventListener('change',()=>{window.location.href='/configure/sessions?plugin='+encodeURIComponent(select.value)})});</script>{% endif %}
 {% endblock %}
