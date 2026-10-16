@@ -441,9 +441,25 @@ def legacy_monitors(request: Request) -> RedirectResponse:
 
 
 @router.get("/torrents")
-def monitors(request: Request) -> HTMLResponse:
+def monitors(request: Request, selected: int | None = None) -> HTMLResponse:
+    """Render the monitor workspace without changing existing torrent operations."""
     svc = service(request)
-    return render(request, "monitors.html", monitors=svc.admin.monitors())
+    items = svc.admin.monitors()
+    chosen = next((item for item in items if item["id"] == selected), None)
+    if chosen is None and items:
+        chosen = items[0]
+    detail = svc.admin.monitor(chosen["id"]) if chosen else None
+    return render(
+        request,
+        "monitors.html",
+        monitors=items,
+        selected_monitor=detail,
+        selected_timeline=svc.admin.timeline(detail["id"])[:12] if detail else [],
+        selected_versions=svc.admin.versions(detail["id"]) if detail else [],
+        active_monitors=sum(1 for item in items if item["enabled"] and not item["paused"]),
+        paused_monitors=sum(1 for item in items if item["paused"]),
+        tracker_count=len({item["plugin_id"] for item in items if item["plugin_id"]}),
+    )
 
 
 @router.get("/trackers")
