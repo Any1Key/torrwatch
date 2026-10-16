@@ -9,3 +9,12 @@ body.tw-app{background:#07111d;color:#e7f0ff;font:14px/1.45 system-ui,-apple-sys
 @media(max-width:700px){.tw-app .sidebar{width:264px}.tw-app .main{margin-left:0;padding:0 10px 24px}.tw-app .mobile-head{background:#0b1727}.tw-top{height:66px}.tw-search kbd{display:none}.tw-workspace{display:block}.tw-monitor{grid-template-columns:38px minmax(70px,1fr) 68px 9px}.tw-monitor .tw-checked{display:none}.tw-item-icon{width:36px;height:36px}.tw-name strong{font-size:13px}.tw-detail{margin-top:14px}.tw-heading h1{font-size:24px}.tw-sort span{display:none}.tw-sort select{max-width:100px}}
 
 .tw-app .tw-monitor[hidden]{display:none!important}
+
+/* Compact viewports: put sorting on a new row instead of expanding document width. */
+@media (max-width: 600px) {
+  .tw-toolbar { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
+  .tw-filters { gap: 4px; min-width: 0; flex-wrap: wrap; }
+  .tw-filters button { padding: 6px 9px; font-size: 12px; }
+  .tw-sort { margin-left: auto; }
+  .tw-sort select { width: 135px; max-width: 135px; }
+}
