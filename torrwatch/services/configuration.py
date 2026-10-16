@@ -17,6 +17,7 @@ from torrwatch.db.models import (
     NotificationJob,
     ProxyProfile,
     StoragePath,
+    SystemSetting,
     TorrentClient,
     TrackerSession,
 )
@@ -105,14 +106,23 @@ class ConfigurationService:
                     )
                     if stored is None or not stored.encrypted_cookies:
                         raise ValueError("cookie")
+                if plugin.manifest.id == "nnmclub":
+                    self._save_nnmclub_credentials(
+                        values.get("account_username", ""), values.get("account_password", "")
+                    )
                 SessionStore(self.db, self.secrets).clear(namespace)
                 return 1
             if "\n" in header or "\r" in header or len(header) > 32768:
                 raise ValueError("cookie")
+            if plugin.manifest.id == "nnmclub":
+                self._save_nnmclub_credentials(
+                    values.get("account_username", ""), values.get("account_password", "")
+                )
             SessionStore(self.db, self.secrets).import_cookie_header(
                 namespace, header, values.get("user_agent") or None
             )
             return 1
+
         with self.db.session() as s:
             if resource == "paths":
                 path = values.get("path", "").strip()
@@ -227,6 +237,22 @@ class ConfigurationService:
                 s.flush()
                 return channel.id
         raise ValueError("resource")
+
+    def _save_nnmclub_credentials(self, username: str, password: str) -> None:
+        """Store NNM-Club credentials separately from the encrypted browser session."""
+        with self.db.session() as s:
+            row = s.get(SystemSetting, "nnmclub_username")
+            if row is None:
+                s.add(SystemSetting(key="nnmclub_username", value=username.strip()))
+            else:
+                row.value = username.strip()
+            if password:
+                encrypted = self.secrets.encrypt(password)
+                secret_row = s.get(SystemSetting, "nnmclub_password_encrypted")
+                if secret_row is None:
+                    s.add(SystemSetting(key="nnmclub_password_encrypted", value=encrypted))
+                else:
+                    secret_row.value = encrypted
 
     def save_monitor(self, values: dict[str, str], ident: int | None = None) -> int:
         name = values.get("name", "").strip()

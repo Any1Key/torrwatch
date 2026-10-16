@@ -4,7 +4,7 @@
 <form class="card form-card" method="post" action="/configure/{{ resource }}{% if ident %}/{{ ident }}{% endif %}">
 <input type="hidden" name="csrf" value="{{ csrf_token }}">
 {% if error %}<div class="alert" role="alert" id="form-error">{{ error }}</div>{% endif %}
-{% for key,label,kind,help in fields %}
+{% for key,label,kind,help in fields %}{% if not (resource == 'sessions' and key in ['account_username','account_password'] and values.get('plugin') != 'nnmclub') %}
 <div class="field" data-field="{{ key }}"><label for="{{ key }}">{{ label }}{% if key in ['type','plugin','path'] or (key=='name' and resource != 'monitors') %} <span aria-label="обязательно">*</span>{% endif %}</label>
 {% if kind.startswith('select:') or kind in ['plugins','clients','proxies','paths'] %}
 <select id="{{ key }}" name="{{ key }}" aria-describedby="help-{{ key }}">
@@ -13,8 +13,8 @@
 </select>
 {% elif kind == 'checkbox' %}<input type="checkbox" id="{{ key }}" name="{{ key }}" {% if values.get(key)=='on' %}checked{% endif %}>
 {% elif kind == 'cookie' %}<textarea id="{{ key }}" name="{{ key }}" rows="5" autocomplete="off" spellcheck="false" placeholder="name=value; name2=value2">{{ values.get(key,'') }}</textarea>{% if resource == 'sessions' %}<div class="browser-import"><button class="secondary" type="button" data-session-pair>Создать код для расширения</button><code data-session-token hidden></code><small data-session-pair-status>Расширение передаст Cookie и User-Agent только после вашего подтверждения.</small></div>{% endif %}{% else %}<span class="input-wrap"><input id="{{ key }}" name="{{ key }}" type="{{ kind }}" {% if kind != 'password' %}value="{{ values.get(key,'') }}"{% else %}autocomplete="new-password"{% endif %} {% if resource == 'monitors' and key == 'name' %}readonly{% endif %} {% if key == 'path' or (key=='url' and resource in ['monitors','clients']) %}required{% endif %} {% if key=='interval_seconds' %}min="300" data-duration{% endif %} aria-describedby="help-{{ key }}">{% if kind == 'password' %}<button class="reveal" type="button" data-reveal="{{ key }}">Показать</button>{% endif %}</span>{% if key == 'interval_seconds' %}<output class="duration-preview" data-duration-preview></output>{% endif %}{% endif %}
-<small id="help-{{ key }}">{{ help }}</small>{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}</div>
-{% endfor %}
+<small id="help-{{ key }}">{{ help }}</small>{% if key == 'account_password' and account_password_configured %}<small>Пароль уже сохранён. Оставьте поле пустым, если менять его не нужно.</small>{% endif %}{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}</div>
+{% endif %}{% endfor %}
 {% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
 <footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
 </form>

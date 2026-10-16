@@ -243,6 +243,18 @@ FIELDS = {
     "sessions": [
         ("plugin", "Трекер", "plugins", ""),
         (
+            "account_username",
+            "Логин учётной записи",
+            "text",
+            "Для NNM-Club используется FlareSolverr для автоматического обновления сессии.",
+        ),
+        (
+            "account_password",
+            "Пароль учётной записи",
+            "password",
+            "Оставьте пустым при редактировании, чтобы сохранить текущий пароль.",
+        ),
+        (
             "cookie",
             "Cookie",
             "cookie",
@@ -516,6 +528,8 @@ def form(
             values["plugin"] = selected_plugin
             try:
                 tracker = request.app.state.plugin_registry.get(selected_plugin)
+                if tracker.manifest.id == "nnmclub":
+                    values["account_username"] = _setting(request, "nnmclub_username") or ""
                 cookies, user_agent = SessionStore(
                     request.app.state.database,
                     SecretBox(request.app.state.settings.resolved_master_key_file),
@@ -594,6 +608,7 @@ def form(
         clients=svc.admin.resource("clients"),
         proxies=svc.admin.resource("proxies"),
         paths=svc.admin.resource("paths"),
+        account_password_configured=bool(_setting(request, "nnmclub_password_encrypted")),
         status_code=422 if error else 200,
     )
 
