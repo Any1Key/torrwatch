@@ -60,7 +60,7 @@ body.tw-app .sidebar-footer form button{
   min-height:32px;background:#152b40;border:1px solid #284258;color:#dbeafd;
   padding:5px 9px;border-radius:7px;font-weight:500
 }
-body.tw-app .main{margin-left:240px;max-width:none;min-height:100vh;padding:0 29px 52px;background:var(--bg)}
+body.tw-inner .main{margin-left:240px;max-width:none;min-height:100vh;padding:0 29px 52px;background:var(--bg)}
 body.tw-app.tw-inner .topline{display:none}
 body.tw-app .help-fab{background:#133653;color:#bdeaff;box-shadow:none;border:1px solid #24547a}
 .tw-global-toolbar{
@@ -226,7 +226,7 @@ body.tw-login .login-card-error{background:#3d2233;border-color:#784355;color:#f
  body.tw-app .sidebar nav>a,body.tw-app .nav-group summary{justify-content:center;font-size:0;min-height:43px}
  body.tw-app .sidebar nav>a .nav-icon,body.tw-app .nav-group summary .nav-icon{flex:none}
  body.tw-app .sidebar .nav-group a{margin:0;padding:7px 3px;font-size:10px}
- body.tw-app .main{margin-left:76px;padding:0 18px 35px}
+ body.tw-inner .main{margin-left:76px;padding:0 18px 35px}
 }
 @media(max-width:760px){
  body.tw-app .sidebar{width:264px;padding:20px 17px}
@@ -234,7 +234,7 @@ body.tw-login .login-card-error{background:#3d2233;border-color:#784355;color:#f
  body.tw-app .sidebar>.eyebrow,body.tw-app .sidebar-footer{display:block}
  body.tw-app .sidebar nav>a,body.tw-app .nav-group summary{justify-content:flex-start;font-size:13px}
  body.tw-app .sidebar .nav-group a{font-size:12px;padding:8px 12px;margin-left:23px}
- body.tw-app .main{margin-left:0;padding:0 13px 30px}
+ body.tw-inner .main{margin-left:0;padding:0 13px 30px}
  .tw-global-toolbar{min-height:65px}
  .tw-toolbar-label{display:none}
  .tw-toolbar-actions{margin-left:auto}
