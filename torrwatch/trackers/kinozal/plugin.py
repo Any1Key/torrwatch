@@ -21,7 +21,7 @@ from torrwatch.trackers.types import (
     TrackerPluginError,
     TrackerTarget,
 )
-from torrwatch.transport.http import TransportError
+from torrwatch.transport.http import TransportError, TransportResponse
 
 
 class KinozalPlugin:
@@ -139,6 +139,7 @@ class KinozalPlugin:
         except TransportError as error:
             raise _transport_error(error) from error
         _status(response.status_code)
+        _validate_download_response(response)
         return response.body
 
 
@@ -157,6 +158,23 @@ def _status(status: int) -> None:
         raise TrackerPluginError(
             PluginErrorCode.TRACKER_UNAVAILABLE, "Kinozal request was rejected."
         )
+
+
+def _validate_download_response(response: TransportResponse) -> None:
+    """Turn Kinozal's HTML download notices into actionable plugin errors."""
+    content_type = response.headers.get("content-type", "").lower()
+    if "text/html" not in content_type and not response.body.lstrip().startswith(b"<"):
+        return
+    text = response.body.decode("cp1251", errors="replace").lower()
+    if "вам недоступен торрент-файл" in text and "количество торрент-файлов" in text:
+        raise TrackerPluginError(
+            PluginErrorCode.RATE_LIMITED,
+            "Kinozal: дневной лимит скачивания торрент-файлов исчерпан. Дождитесь сброса лимита.",
+        )
+    raise TrackerPluginError(
+        PluginErrorCode.PLUGIN_PARSE_ERROR,
+        "Kinozal вернул HTML вместо torrent-файла. Проверьте доступ к скачиванию.",
+    )
 
 
 def _transport_error(error: TransportError) -> TrackerPluginError:

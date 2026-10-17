@@ -220,6 +220,12 @@ FIELDS = {
             "password",
             "Оставьте пустым при редактировании, чтобы сохранить текущий пароль.",
         ),
+        (
+            "forced_verification_enabled",
+            "Принудительно проверять .torrent раз в сутки",
+            "checkbox",
+            "Обычно выключено, чтобы не расходовать суточный лимит Kinozal. Новые раздачи и новые версии проверяются всегда.",
+        ),
     ],
     "monitors": [
         (
@@ -449,6 +455,10 @@ def form(
     if resource == "sessions":
         plugin_id = str(values.get("plugin", "")).strip()
         account_prefix = "nnmclub" if plugin_id == "nnmclub" else f"tracker_{plugin_id}"
+        if plugin_id == "kinozal":
+            values["forced_verification_enabled"] = _setting(
+                request, "tracker_kinozal_forced_verification_enabled"
+            ) or ""
         values["account_username"] = _setting(request, f"{account_prefix}_username") or ""
         if plugin_id == "nnmclub" and not values["account_username"]:
             values["account_username"] = request.app.state.settings.nnmclub_username or ""
@@ -552,6 +562,7 @@ async def save_configuration(
             "proxy": "Выберите существующий включённый прокси.",
             "events": "Выберите типы событий из списка в подсказке.",
             "fallback": "PROFILE доступен только для ранее настроенной цепочки.",
+            "forced_verification_enabled": "Параметр принудительной проверки сохранён некорректно.",
         }
         message = messages.get(
             field, "Проверьте обязательные поля, URL, тип и уникальность названия."
@@ -681,17 +692,43 @@ async def test_client(request: Request, ident: int) -> RedirectResponse:
 
 
 @router.get("/queues")
-def queues(request: Request) -> HTMLResponse:
+def queues(
+    request: Request,
+    show: str = "active",
+    kind: str = "all",
+) -> HTMLResponse:
+    if show not in {"active", "errors", "success", "all"}:
+        show = "active"
+    if kind not in {"all", "jobs", "deliveries", "notifications"}:
+        kind = "all"
+    status_filters = {
+        "active": {"PENDING", "RUNNING", "FAILED_RETRYABLE", "FAILED_PERMANENT"},
+        "errors": {"FAILED_RETRYABLE", "FAILED_PERMANENT"},
+        "success": {"SUCCESS"},
+        "all": None,
+    }
+    statuses = status_filters[show]
+    limit = 100
     admin = service(request).admin
+    sources = {
+        "jobs": ("Проверки и операции клиента", "jobs"),
+        "deliveries": ("Доставка торрентов", "deliveries"),
+        "notifications": ("Уведомления", "notification-jobs"),
+    }
+    selected_sources = (
+        sources.items() if kind == "all" else [(kind, sources[kind])]
+    )
     return render(
         request,
         "queues.html",
         monitors={row["id"]: row["name"] for row in admin.monitors()},
         clients={row["id"]: row["name"] for row in admin.resource("clients")},
+        show=show,
+        kind=kind,
         groups=[
-            ("Проверки и операции клиента", "jobs", admin.resource("jobs")),
-            ("Доставка торрентов", "deliveries", admin.resource("deliveries")),
-            ("Уведомления", "notification-jobs", admin.resource("notification-jobs")),
+            (title, template_kind, admin.resource(resource, statuses=statuses, limit=limit))
+            for _, (title, resource) in selected_sources
+            for template_kind in (["notification-jobs"] if resource == "notification-jobs" else [resource])
         ],
     )
 
@@ -858,13 +895,19 @@ def log_page(request: Request) -> HTMLResponse:
 
 @router.get("/events")
 def events(
-    request: Request, monitor_id: int | None = None, level: str = "", query: str = ""
+    request: Request, monitor_id: str | None = None, level: str = "", query: str = ""
 ) -> HTMLResponse:
+    parsed_monitor_id: int | None = None
+    if monitor_id and monitor_id.strip():
+        try:
+            parsed_monitor_id = int(monitor_id)
+        except ValueError:
+            parsed_monitor_id = None
     admin = service(request).admin
     return render(
         request,
         "events.html",
-        events=admin.filtered_events(monitor_id=monitor_id, level=level, query=query),
+        events=admin.filtered_events(monitor_id=parsed_monitor_id, level=level, query=query),
         monitors=admin.monitors(),
-        filters={"monitor_id": monitor_id, "level": level, "query": query},
+        filters={"monitor_id": parsed_monitor_id, "level": level, "query": query},
     )

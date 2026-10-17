@@ -19,6 +19,20 @@ USER_SESSION_KEY = "user_id"
 SESSION_EXPIRES_KEY = "session_expires_at"
 
 
+def _authentication_required(request: Request) -> None:
+    """Redirect browser navigation to login while keeping API errors JSON."""
+    if "text/html" in request.headers.get("accept", ""):
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            headers={"Location": "/"},
+            detail="Authentication required.",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required.",
+    )
+
+
 def hash_password(password: str) -> str:
     return PASSWORD_HASHER.hash(password)
 
@@ -49,24 +63,20 @@ def require_csrf(request: Request, submitted_token: str) -> None:
 def require_admin(request: Request) -> User:
     user_id = request.session.get(USER_SESSION_KEY)
     if not isinstance(user_id, int):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
-        )
+        _authentication_required(request)
     expires = request.session.get(SESSION_EXPIRES_KEY)
     if isinstance(expires, str):
         try:
             if datetime.fromisoformat(expires) < datetime.now(UTC):
                 request.session.clear()
-                raise HTTPException(status_code=401, detail="Authentication required.")
+                _authentication_required(request)
         except ValueError:
             request.session.clear()
-            raise HTTPException(status_code=401, detail="Authentication required.") from None
+            _authentication_required(request)
     database: Database = request.app.state.database
     with database.session() as database_session:
         user = database_session.get(User, user_id)
         if user is None or user.disabled:
             request.session.clear()
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
-            )
+            _authentication_required(request)
         return user

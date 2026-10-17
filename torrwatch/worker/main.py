@@ -30,6 +30,7 @@ from torrwatch.services.flaresolverr import (
     FlareSolverrError,
     refresh_kinozal,
     refresh_nnmclub,
+    refresh_rutracker,
 )
 from torrwatch.services.jobs import (
     JobExecutionFailure,
@@ -387,6 +388,17 @@ async def run_worker(settings: Settings) -> None:
                         )
                     except FlareSolverrError as error:
                         logger.warning("Automatic Kinozal session refresh failed: %s", error)
+                if automation["rutracker_username"] and automation["rutracker_password"]:
+                    try:
+                        await refresh_rutracker(
+                            database,
+                            secrets,
+                            solver,
+                            automation["rutracker_username"],
+                            automation["rutracker_password"],
+                        )
+                    except FlareSolverrError as error:
+                        logger.warning("Automatic RuTracker session refresh failed: %s", error)
                 logger.info("Automatic tracker session refresh finished.")
             await worker_cycle(
                 database,
@@ -451,6 +463,8 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
                     "nnmclub_password_encrypted",
                     "tracker_kinozal_username",
                     "tracker_kinozal_password_encrypted",
+                    "tracker_rutracker_username",
+                    "tracker_rutracker_password_encrypted",
             }
             relevant = [row for row in rows if row.key in relevant_keys]
             values = {row.key: row.value for row in relevant}
@@ -482,6 +496,10 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
         "kinozal_username": values.get("tracker_kinozal_username") or "",
         "kinozal_password": _decrypt_optional(
             secrets, values.get("tracker_kinozal_password_encrypted")
+        ),
+        "rutracker_username": values.get("tracker_rutracker_username") or "",
+        "rutracker_password": _decrypt_optional(
+            secrets, values.get("tracker_rutracker_password_encrypted")
         ),
         "credentials_revision": credentials_revision,
     }

@@ -66,13 +66,15 @@ class _LoginFormParser(HTMLParser):
     def _login_form(self) -> dict[str, object] | None:
         for form in self.forms:
             fields = form.get("fields")
-            if isinstance(fields, dict) and "password" in fields:
+            if isinstance(fields, dict) and any(
+                "password" in str(name).lower() for name in fields
+            ):
                 return form
         return self.forms[0] if self.forms else None
 
 
 class FlareSolverrClient:
-    def __init__(self, endpoint: str, timeout_seconds: float = 150.0) -> None:
+    def __init__(self, endpoint: str, timeout_seconds: float = 210.0) -> None:
         self.endpoint = endpoint.rstrip("/") + "/v1"
         self.timeout = httpx.Timeout(timeout_seconds, connect=10.0)
 
@@ -89,7 +91,7 @@ class FlareSolverrClient:
             "url": url,
             "session": session,
             "session_ttl_minutes": 180,
-            "maxTimeout": 120000,
+            "maxTimeout": 180000,
             "returnOnlyCookies": False,
             "cookies": cookies or [],
             "waitInSeconds": 2,
@@ -119,6 +121,36 @@ class FlareSolverrClient:
             status=int(solution.get("status") or 0),
         )
 
+    async def create_session(self, session: str) -> None:
+        """Create a named browser session before using it for requests."""
+        payload = {"cmd": "sessions.create", "session": session}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(self.endpoint, json=payload)
+                response.raise_for_status()
+                body = response.json()
+        except (httpx.HTTPError, ValueError) as error:
+            raise FlareSolverrError("FlareSolverr is unavailable.") from error
+        if body.get("status") != "ok":
+            message = str(body.get("message") or "FlareSolverr could not create a session.")
+            raise FlareSolverrError(message)
+
+    async def reset_session(self, session: str) -> None:
+        """Ensure a fresh named browser session exists.
+
+        FlareSolverr removes sessions after a restart or TTL expiration. A
+        request carrying a missing session only returns ``session doesn't
+        exist``; recreating it here makes refresh self-healing.
+        """
+        # FlareSolverr returns HTTP 500 when the named session has already
+        # expired or disappeared after a restart. That is exactly the state
+        # this method is meant to recover from, so continue with creation.
+        try:
+            await self.destroy_session(session)
+        except FlareSolverrError:
+            logger.debug("FlareSolverr session %s was already absent", session)
+        await self.create_session(session)
+
     async def destroy_session(self, session: str) -> None:
         """Drop a possibly stale browser session before a fresh login flow."""
         payload = {"cmd": "sessions.destroy", "session": session}
@@ -139,7 +171,15 @@ def _cookie_payload(session: TrackerSession, secrets: SecretBox) -> list[dict[st
 
 def _is_login_page(html: str) -> bool:
     lowered = html.lower().replace(" ", "")
-    return "name=\"password\"" in lowered or "name='password'" in lowered
+    return any(
+        marker in lowered
+        for marker in (
+            'name="password"',
+            "name='password'",
+            'name="login_password"',
+            "name='login_password'",
+        )
+    )
 
 
 def _is_cloudflare_challenge(html: str) -> bool:
@@ -164,6 +204,7 @@ async def refresh_nnmclub(
         stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
         cookies = _cookie_payload(stored, secrets) if stored else []
     solver_session = "torrwatch-nnmclub-account-1"
+    await client.reset_session(solver_session)
     result = await client.request(url=target, session=solver_session, cookies=cookies)
     if _is_login_page(result.html):
         parser = _LoginFormParser()
@@ -212,7 +253,7 @@ async def refresh_kinozal(
     solver_session = "torrwatch-kinozal-account-1"
     # A previous browser session can retain a failed Cloudflare challenge.
     # Start clean, then warm up the domain before requesting the login form.
-    await client.destroy_session(solver_session)
+    await client.reset_session(solver_session)
     result = await client.request(url=home, session=solver_session, cookies=cookies)
     if _is_cloudflare_challenge(result.html) or not _is_login_page(result.html):
         result = await client.request(
@@ -251,3 +292,66 @@ async def refresh_kinozal(
         if stored is not None:
             stored.auth_status = "WORKING"
     logger.info("Automatic Kinozal session refresh completed; cookies=%d", len(list(parsed.jar)))
+
+
+async def refresh_rutracker(
+    database: Database,
+    secrets: SecretBox,
+    client: FlareSolverrClient,
+    username: str,
+    password: str,
+) -> None:
+    """Refresh RuTracker Cloudflare and account session through FlareSolverr."""
+    namespace = "rutracker:account:1"
+    home = "https://rutracker.org/forum/index.php"
+    login = "https://rutracker.org/forum/login.php"
+    with database.session() as session:
+        stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
+        cookies = _cookie_payload(stored, secrets) if stored else []
+    solver_session = "torrwatch-rutracker-account-1"
+    await client.reset_session(solver_session)
+    result = await client.request(url=home, session=solver_session, cookies=cookies)
+    if _is_cloudflare_challenge(result.html) or _is_login_page(result.html):
+        result = await client.request(url=login, session=solver_session, cookies=result.cookies)
+    if _is_login_page(result.html):
+        parser = _LoginFormParser()
+        parser.feed(result.html)
+        action = urljoin(login, parser.action or "/forum/login.php")
+        fields = dict(parser.fields)
+        fields.update(
+            {
+                "login_username": username,
+                "login_password": password,
+                "login": "Вход",
+            }
+        )
+        result = await client.request(
+            url=action,
+            session=solver_session,
+            cookies=result.cookies,
+            post_data=urlencode(fields),
+        )
+        result = await client.request(url=home, session=solver_session, cookies=result.cookies)
+    if _is_cloudflare_challenge(result.html):
+        raise FlareSolverrError("RuTracker Cloudflare challenge was not completed.")
+    if _is_login_page(result.html):
+        raise FlareSolverrError(
+            "RuTracker запросил дополнительную CAPTCHA при входе или отклонил логин/пароль."
+        )
+    if result.status >= 400:
+        raise FlareSolverrError(
+            f"RuTracker returned HTTP {result.status} after login."
+        )
+    parsed = httpx.Cookies()
+    for item in result.cookies:
+        name, value = item.get("name"), item.get("value")
+        domain = item.get("domain") or ".rutracker.org"
+        path = item.get("path") or "/"
+        if isinstance(name, str) and isinstance(value, str):
+            parsed.set(name, value, domain=str(domain), path=str(path))
+    SessionStore(database, secrets).save(namespace, parsed, result.user_agent, authenticated=True)
+    with database.session() as session:
+        stored = session.query(TrackerSession).filter_by(namespace=namespace).one_or_none()
+        if stored is not None:
+            stored.auth_status = "WORKING"
+    logger.info("Automatic RuTracker session refresh completed; cookies=%d", len(list(parsed.jar)))

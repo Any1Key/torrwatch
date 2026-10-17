@@ -46,6 +46,11 @@ class ConfigurationService:
     def sessions(self) -> list[dict[str, Any]]:
         with self.db.session() as s:
             stored = {row.namespace: row for row in s.scalars(select(TrackerSession))}
+            settings = {
+                row.key: row.value
+                for row in s.scalars(select(SystemSetting))
+                if row.key.endswith("_username") or row.key.endswith("_password_encrypted")
+            }
             checking = set(
                 s.scalars(
                     select(MonitorItem.plugin_id)
@@ -61,26 +66,66 @@ class ConfigurationService:
         return [
             {
                 **item,
+                "credentials_configured": bool(
+                    settings.get(
+                        "nnmclub_username"
+                        if item["id"] == "nnmclub"
+                        else f"tracker_{item['id']}_username"
+                    )
+                    and settings.get(
+                        "nnmclub_password_encrypted"
+                        if item["id"] == "nnmclub"
+                        else f"tracker_{item['id']}_password_encrypted"
+                    )
+                ),
                 "last_error": "Трекер не принял сессию. Проверьте логин и пароль учётной записи."
                 if stored.get(f"{item['id']}:account:1")
                 and stored[f"{item['id']}:account:1"].auth_status == "EXPIRED"
                 else None,
                 "configured": bool(
-                    stored.get(f"{item['id']}:account:1")
-                    and stored[f"{item['id']}:account:1"].encrypted_cookies
+                    (
+                        stored.get(f"{item['id']}:account:1")
+                        and stored[f"{item['id']}:account:1"].encrypted_cookies
+                    )
+                    or (
+                        settings.get(
+                            "nnmclub_username"
+                            if item["id"] == "nnmclub"
+                            else f"tracker_{item['id']}_username"
+                        )
+                        and settings.get(
+                            "nnmclub_password_encrypted"
+                            if item["id"] == "nnmclub"
+                            else f"tracker_{item['id']}_password_encrypted"
+                        )
+                    )
                 ),
                 "status": (
                     "Не настроена"
                     if not (
                         stored.get(f"{item['id']}:account:1")
                         and stored[f"{item['id']}:account:1"].encrypted_cookies
+                    ) and not (
+                        settings.get(
+                            "nnmclub_username"
+                            if item["id"] == "nnmclub"
+                            else f"tracker_{item['id']}_username"
+                        )
+                        and settings.get(
+                            "nnmclub_password_encrypted"
+                            if item["id"] == "nnmclub"
+                            else f"tracker_{item['id']}_password_encrypted"
+                        )
                     )
                     else (
                         "Проверяется"
                         if item["id"] in checking
                         else statuses.get(
-                            stored[f"{item['id']}:account:1"].auth_status, "Ожидает проверки"
+                            stored[f"{item['id']}:account:1"].auth_status,
+                            "Ожидает проверки",
                         )
+                        if stored.get(f"{item['id']}:account:1")
+                        else "Ожидает проверки"
                     )
                 ),
             }
@@ -98,6 +143,15 @@ class ConfigurationService:
                 values.get("account_username", ""),
                 values.get("account_password", ""),
             )
+            if plugin.manifest.id == "kinozal":
+                key = "tracker_kinozal_forced_verification_enabled"
+                value = "on" if values.get("forced_verification_enabled") == "on" else ""
+                with self.db.session() as s:
+                    row = s.get(SystemSetting, key)
+                    if row is None:
+                        s.add(SystemSetting(key=key, value=value))
+                    else:
+                        row.value = value
             return 1
 
         with self.db.session() as s:

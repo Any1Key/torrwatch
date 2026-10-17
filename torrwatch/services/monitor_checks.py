@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from torrwatch.core.config import Settings
 from torrwatch.db.database import Database
-from torrwatch.db.models import DeliveryJob, Event, Job, MonitorItem, ReleaseVersion, TrackerSession
+from torrwatch.db.models import (
+    DeliveryJob,
+    Event,
+    Job,
+    MonitorItem,
+    ReleaseVersion,
+    SystemSetting,
+    TrackerSession,
+)
 from torrwatch.domain.enums import InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.notifications.service import NotificationRepository
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
@@ -119,7 +127,7 @@ class MonitorCheckService:
             raise self._plugin_failure(error) from error
         self._record_auth(job.id, worker_id, namespace, imported_at, "WORKING")
 
-        forced_due = self._forced_verification_due(state)
+        forced_due = self._forced_verification_due(state, plugin.manifest.id)
         version_changed = remote.version_key != snapshot.current_version_key
         needs_download = snapshot.current_release_id is None or version_changed or forced_due
         if not needs_download:
@@ -277,8 +285,20 @@ class MonitorCheckService:
                 current_version_key=current.version_key if current is not None else None,
             )
 
-    def _forced_verification_due(self, state: PluginStateNamespace) -> bool:
+    def _forced_verification_due(self, state: PluginStateNamespace, plugin_id: str) -> bool:
         interval = self._settings.torrent_forced_verification_seconds
+        if plugin_id == "kinozal":
+            # Kinozal has a daily download quota. The account-level checkbox
+            # controls whether unchanged releases should consume that quota.
+            interval = 0
+            with self._database.session() as session:
+                configured = session.scalar(
+                    select(SystemSetting.value).where(
+                        SystemSetting.key == "tracker_kinozal_forced_verification_enabled"
+                    )
+                )
+            if configured == "on":
+                interval = 86_400
         if interval == 0:
             return False
         value = state.get("last_torrent_verification_at")

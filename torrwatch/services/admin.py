@@ -535,7 +535,13 @@ class AdminService:
             )
         ]
 
-    def resource(self, name: str) -> list[dict[str, Any]]:
+    def resource(
+        self,
+        name: str,
+        *,
+        statuses: set[str] | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         mappings: dict[str, tuple[type[Any], tuple[str, ...]]] = {
             "jobs": (
                 Job,
@@ -599,7 +605,13 @@ class AdminService:
             raise AdminValidationError("Неизвестный ресурс.")
         model, fields = mappings[name]
         with self.database.session() as session:
-            rows = session.scalars(select(model).order_by(model.id)).all()
+            query = select(model)
+            if statuses:
+                query = query.where(model.status.in_(statuses))
+            query = query.order_by(model.id.desc())
+            if limit is not None:
+                query = query.limit(max(1, min(limit, 500)))
+            rows = session.scalars(query).all()
             return [
                 {
                     field: _timestamp(value)

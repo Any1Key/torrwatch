@@ -123,7 +123,7 @@ class RuTrackerPlugin:
 
 
 def _raise_for_status(status_code: int) -> None:
-    if status_code == 401:
+    if status_code in {401, 403}:
         raise TrackerPluginError(PluginErrorCode.AUTH_REQUIRED, "RuTracker session is required.")
     if status_code == 404:
         raise TrackerPluginError(PluginErrorCode.INVALID_TARGET, "RuTracker topic was not found.")

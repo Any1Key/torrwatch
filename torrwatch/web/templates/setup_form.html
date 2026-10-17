@@ -11,6 +11,7 @@
   <input type="hidden" name="csrf" value="{{ csrf_token }}">
   {% if error %}<div class="alert" role="alert" id="form-error">{{ error }}</div>{% endif %}
   {% for key,label,kind,help in fields %}
+  {% if not (resource == 'sessions' and key == 'forced_verification_enabled' and values.get('plugin') != 'kinozal') %}
   <div class="field" data-field="{{ key }}">
     <label for="{{ key }}">{{ label }}{% if key in ['type','plugin','path'] or (key=='name' and resource != 'monitors') %} <span aria-label="обязательно">*</span>{% endif %}</label>
     {% if resource == 'sessions' and key == 'plugin' %}
@@ -28,6 +29,7 @@
     {% endif %}
     <small id="help-{{ key }}">{{ help }}</small>{% if key == 'account_password' and account_password_configured %}<small>Пароль уже сохранён. Оставьте поле пустым, если менять его не нужно.</small>{% endif %}{% if error and error_field == key %}<small class="field-error">{{ error }}</small>{% endif %}
   </div>
+  {% endif %}
   {% endfor %}
   {% if resource == 'monitors' %}<div id="resolution" role="status" data-resolve>Трекер, канонический URL и ID будут определены по введённому URL.</div>{% endif %}
   <footer class="form-actions"><button type="submit">Сохранить</button><a class="button secondary" href="{{ '/torrents' if resource=='monitors' else '/settings/'+resource }}">Отмена</a></footer>
