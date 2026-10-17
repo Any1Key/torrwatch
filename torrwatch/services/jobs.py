@@ -230,10 +230,13 @@ class JobRepository:
         recommendation: str | None = None,
         technical_message: str | None = None,
     ) -> bool:
+        event_id: int | None = None
+        monitor_id: int | None = None
         with self.database.session() as session:
             job = session.get(Job, job_id)
             if job is None or job.status != JobStatus.RUNNING or job.worker_id != worker_id:
                 return False
+            monitor_id = job.monitor_id
             delay = (
                 retry_delay_seconds
                 or RETRY_DELAYS_SECONDS[min(job.attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
@@ -248,8 +251,7 @@ class JobRepository:
                     monitor.last_check_at = now
                     monitor.consecutive_failures += 1
                     monitor.current_status = monitor_status
-                session.add(
-                    Event(
+                event = Event(
                         monitor_id=job.monitor_id,
                         level="WARNING",
                         event_code=event_code,
@@ -267,8 +269,16 @@ class JobRepository:
                         ),
                         created_at=now,
                     )
-                )
-            return True
+                session.add(event)
+                session.flush()
+                event_id = event.id
+        if event_id is not None and monitor_id is not None:
+            from torrwatch.notifications.service import NotificationRepository
+
+            NotificationRepository(self.database).enqueue_for_monitor_event(
+                event_id, event_code, monitor_id, error
+            )
+        return True
 
     def fail_permanent(
         self,
@@ -282,10 +292,13 @@ class JobRepository:
         recommendation: str | None = None,
         technical_message: str | None = None,
     ) -> bool:
+        event_id: int | None = None
+        monitor_id: int | None = None
         with self.database.session() as session:
             job = session.get(Job, job_id)
             if job is None or job.status != JobStatus.RUNNING or job.worker_id != worker_id:
                 return False
+            monitor_id = job.monitor_id
             job.status, job.completed_at, job.lease_expires_at, job.active_key, job.last_error = (
                 JobStatus.FAILED_PERMANENT,
                 now,
@@ -300,8 +313,7 @@ class JobRepository:
                     monitor.next_check_at = None
                     monitor.current_status = monitor_status
                     monitor.consecutive_failures += 1
-                session.add(
-                    Event(
+                event = Event(
                         monitor_id=job.monitor_id,
                         level="ERROR",
                         event_code=event_code,
@@ -319,8 +331,16 @@ class JobRepository:
                         ),
                         created_at=now,
                     )
-                )
-            return True
+                session.add(event)
+                session.flush()
+                event_id = event.id
+        if event_id is not None and monitor_id is not None:
+            from torrwatch.notifications.service import NotificationRepository
+
+            NotificationRepository(self.database).enqueue_for_monitor_event(
+                event_id, event_code, monitor_id, error
+            )
+        return True
 
     def recover_abandoned(self, now: datetime) -> int:
         with self.database.session() as session:
