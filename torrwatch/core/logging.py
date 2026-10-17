@@ -107,3 +107,42 @@ def read_debug_logs(data_dir: Path, redact_enabled: bool) -> str:
             continue
         chunks.append(redact_log_text(content) if redact_enabled else content)
     return "\n".join(chunks)
+
+
+def read_debug_log_preview(
+    data_dir: Path, redact_enabled: bool, max_lines: int = 500
+) -> str:
+    """Read a bounded, newest-first preview of current and rotated logs.
+
+    The complete log remains available through :func:`read_debug_logs`.  This
+    helper is intended for the browser view, where rendering several rotated
+    files at once makes the page slow and hides the most recent entries.
+    """
+    log_dir = data_dir / "logs"
+    if not log_dir.exists():
+        return ""
+
+    files: list[tuple[float, Path]] = []
+    for path in log_dir.glob("*.debug.log*"):
+        try:
+            files.append((path.stat().st_mtime, path))
+        except OSError:
+            continue
+
+    # The current file is normally the most recently modified one.  Sorting by
+    # mtime also keeps the preview useful when web and worker logs are mixed.
+    lines: list[str] = []
+    for _, path in sorted(files, reverse=True):
+        try:
+            file_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        if not file_lines:
+            continue
+        lines.append(f"--- {path.name} ---")
+        lines.extend(reversed(file_lines))
+        if len(lines) >= max_lines:
+            break
+
+    preview = "\n".join(lines[:max_lines])
+    return redact_log_text(preview) if redact_enabled else preview

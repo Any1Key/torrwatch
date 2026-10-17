@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from torrwatch.api.routes import templates
 from torrwatch.clients.types import TorrentClientError
-from torrwatch.core.logging import read_debug_logs
+from torrwatch.core.logging import read_debug_log_preview, read_debug_logs
 from torrwatch.core.secrets import SecretBox, SecretKeyError
 from torrwatch.core.security import csrf_token, hash_password, require_admin, require_csrf
 from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient, TrackerSession, User
@@ -813,15 +813,26 @@ def _setting(request: Request, key: str) -> str | None:
             return session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
 
 
-def _system_log_text(request: Request, svc: Any) -> str:
-    """Build the same complete diagnostic text shown by the download endpoint."""
+def _system_log_text(
+    request: Request, svc: Any, *, preview: bool = False, max_lines: int = 500
+) -> str:
+    """Build the diagnostic text for either the bounded view or full download."""
     redact_secrets = _setting(request, "debug_redact_secrets") != "false"
     lines: list[str] = []
-    debug_log = read_debug_logs(request.app.state.settings.data_dir, redact_secrets)
+    debug_log = (
+        read_debug_log_preview(
+            request.app.state.settings.data_dir, redact_secrets, max_lines=max_lines
+        )
+        if preview
+        else read_debug_logs(request.app.state.settings.data_dir, redact_secrets)
+    )
     if debug_log:
         lines.extend(("=== APPLICATION DEBUG LOG ===", debug_log))
     lines.append("=== PERSISTED EVENTS ===")
-    for event in svc.admin.events():
+    events = svc.admin.events()
+    if preview:
+        events = events[:max_lines]
+    for event in events:
         lines.append(
             f"{event['created_at']} [{event['level']}] {event['code']}: {event['message']}"
         )
@@ -882,13 +893,15 @@ def logs(request: Request) -> PlainTextResponse:
 
 
 @router.get("/logs", response_class=HTMLResponse)
-def log_page(request: Request) -> HTMLResponse:
+def log_page(request: Request, limit: int = 500) -> HTMLResponse:
     """Dedicated operational log viewer; downloading remains /system/logs."""
     svc = service(request)
+    limit = max(100, min(limit, 2000))
     return render(
         request,
         "logs.html",
-        log_text=_system_log_text(request, svc),
+        log_text=_system_log_text(request, svc, preview=True, max_lines=limit),
+        log_limit=limit,
         debug_mode=_setting(request, "debug_mode") == "true",
     )
 
