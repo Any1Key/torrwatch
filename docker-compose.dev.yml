@@ -1,0 +1,8 @@
+services:
+  web:
+    build: .
+    image: torrwatch:dev
+
+  worker:
+    build: .
+    image: torrwatch:dev

@@ -13,7 +13,10 @@ RUN uv sync --frozen --no-dev
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="torrwatch" \
-      org.opencontainers.image.description="Self-hosted torrent release monitor"
+      org.opencontainers.image.description="Self-hosted torrent release monitor" \
+      org.opencontainers.image.source="https://github.com/Any1Key/torrwatch" \
+      org.opencontainers.image.url="https://github.com/Any1Key/torrwatch" \
+      org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -63,6 +63,18 @@ cd torrwatch
 cp .env.example .env
 ```
 
+Compose использует готовый образ с Docker Hub:
+
+```text
+ruslanchikt/torrwatch:latest
+```
+
+Для предсказуемого обновления можно указать конкретную версию в `.env`:
+
+```dotenv
+TORRWATCH_IMAGE=ruslanchikt/torrwatch:0.1.0
+```
+
 Измените в `.env` как минимум:
 
 ```dotenv
@@ -73,7 +85,8 @@ TORRWATCH_ADMIN_PASSWORD=замените-на-длинный-пароль
 Запустите сервисы:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
 ```
 
@@ -95,6 +108,19 @@ curl http://127.0.0.1:8080/health/ready
 
 ```bash
 docker compose down
+```
+
+Обновление до последней версии:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Для локальной разработки и сборки из исходников используйте dev-override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
 Не добавляйте `.env` в Git: в нём могут находиться пароли и токены.
@@ -244,6 +270,21 @@ python -m compileall torrwatch
 uv run ruff check torrwatch
 uv run pytest
 ```
+
+### Публикация образа
+
+Основной образ публикуется в Docker Hub как `ruslanchikt/torrwatch`. Для
+ручной публикации локальной сборки:
+
+```bash
+docker build -t ruslanchikt/torrwatch:latest .
+docker login -u ruslanchikt
+docker push ruslanchikt/torrwatch:latest
+```
+
+GitHub Actions публикует образ автоматически после push в `main` и при создании
+тега вида `v0.2.0`. Для workflow нужно добавить в настройках репозитория secret
+`DOCKERHUB_TOKEN` — Personal Access Token Docker Hub с правом чтения и записи.
 
 Локальные команды приложения:
 
