@@ -307,6 +307,34 @@ async def worker_cycle(
     )
 
 
+async def refresh_tracker_sessions(
+    database: Database, secrets: SecretBox, automation: dict
+) -> None:
+    """Refresh tracker sessions independently of the job processing loop."""
+    solver = FlareSolverrClient(automation["url"])
+    for label, refresh, username, password in (
+        ("NNM-Club", refresh_nnmclub, automation["username"], automation["password"]),
+        (
+            "Kinozal",
+            refresh_kinozal,
+            automation["kinozal_username"],
+            automation["kinozal_password"],
+        ),
+        (
+            "RuTracker",
+            refresh_rutracker,
+            automation["rutracker_username"],
+            automation["rutracker_password"],
+        ),
+    ):
+        if username and password:
+            try:
+                await refresh(database, secrets, solver, username, password)
+            except FlareSolverrError as error:
+                logger.warning("Automatic %s session refresh failed: %s", label, error)
+    logger.info("Automatic tracker session refresh finished.")
+
+
 async def run_worker(settings: Settings) -> None:
     """Run the Phase 0 heartbeat loop and shut down cleanly on SIGTERM."""
     ensure_runtime_files(settings)
@@ -342,6 +370,7 @@ async def run_worker(settings: Settings) -> None:
     checks = MonitorCheckService(database, settings, load_plugin_registry(settings), transport)
     last_session_refresh = 0.0
     last_credentials_revision = ""
+    refresh_task: asyncio.Task[None] | None = None
 
     async def monitor_handler(job: Job) -> None:
         if job.job_type == JobType.MONITOR_CHECK:
@@ -361,46 +390,22 @@ async def run_worker(settings: Settings) -> None:
             if credentials_revision != last_credentials_revision:
                 last_session_refresh = 0.0
                 last_credentials_revision = credentials_revision
-            solver = FlareSolverrClient(automation["url"]) if automation["enabled"] and automation["url"] else None
-            if solver and automation["username"] and automation["password"] and (
-                now_monotonic - last_session_refresh >= automation["refresh_seconds"]
+            if (
+                automation["enabled"]
+                and automation["url"]
+                and (refresh_task is None or refresh_task.done())
+                and (now_monotonic - last_session_refresh >= automation["refresh_seconds"])
             ):
+                if refresh_task is not None:
+                    try:
+                        refresh_task.result()
+                    except Exception:
+                        logger.exception("Automatic tracker session refresh failed unexpectedly")
                 last_session_refresh = now_monotonic
-                if automation["username"] and automation["password"]:
-                    try:
-                        await refresh_nnmclub(
-                            database,
-                            secrets,
-                            solver,
-                            automation["username"],
-                            automation["password"],
-                        )
-                    except FlareSolverrError as error:
-                        logger.warning("Automatic NNM-Club session refresh failed: %s", error)
-                if automation["kinozal_username"] and automation["kinozal_password"]:
-                    try:
-                        await refresh_kinozal(
-                            database,
-                            secrets,
-                            solver,
-                            automation["kinozal_username"],
-                            automation["kinozal_password"],
-                        )
-                    except FlareSolverrError as error:
-                        logger.warning("Automatic Kinozal session refresh failed: %s", error)
-                if automation["rutracker_username"] and automation["rutracker_password"]:
-                    try:
-                        await refresh_rutracker(
-                            database,
-                            secrets,
-                            solver,
-                            automation["rutracker_username"],
-                            automation["rutracker_password"],
-                        )
-                    except FlareSolverrError as error:
-                        logger.warning("Automatic RuTracker session refresh failed: %s", error)
-                logger.info("Automatic tracker session refresh finished.")
-            await worker_cycle(
+                refresh_task = asyncio.create_task(
+                    refresh_tracker_sessions(database, secrets, automation)
+                )
+            work_done = await worker_cycle(
                 database,
                 identity,
                 handler=monitor_handler,
@@ -409,7 +414,7 @@ async def run_worker(settings: Settings) -> None:
                 stop_event=stop_event,
             )
             if not stop_event.is_set():
-                await delivery_cycle(
+                work_done += await delivery_cycle(
                     database,
                     secrets,
                     identity,
@@ -418,7 +423,7 @@ async def run_worker(settings: Settings) -> None:
                     stop_event=stop_event,
                 )
             if not stop_event.is_set():
-                await notification_cycle(
+                work_done += await notification_cycle(
                     database,
                     secrets,
                     identity,
@@ -426,11 +431,21 @@ async def run_worker(settings: Settings) -> None:
                     renewal_seconds=settings.worker_lease_renewal_seconds,
                     stop_event=stop_event,
                 )
+            if work_done:
+                continue
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_poll_seconds)
             except TimeoutError:
                 continue
     finally:
+        if refresh_task is not None:
+            refresh_task.cancel()
+            try:
+                await refresh_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Automatic tracker session refresh failed unexpectedly")
         database.dispose()
         logger.info("Worker stopped")
 
@@ -450,21 +465,23 @@ def _setting_enabled(database: Database, key: str) -> bool:
         return True
 
 
-def _flaresolverr_config(database: Database, settings: Settings, secrets: SecretBox) -> dict[str, object]:
+def _flaresolverr_config(
+    database: Database, settings: Settings, secrets: SecretBox
+) -> dict[str, object]:
     """Read UI overrides, falling back to bootstrap environment settings."""
     try:
         with database.session() as session:
             rows = session.scalars(select(SystemSetting)).all()
             relevant_keys = {
-                    "flaresolverr_url",
-                    "flaresolverr_enabled",
-                    "flaresolverr_refresh_seconds",
-                    "nnmclub_username",
-                    "nnmclub_password_encrypted",
-                    "tracker_kinozal_username",
-                    "tracker_kinozal_password_encrypted",
-                    "tracker_rutracker_username",
-                    "tracker_rutracker_password_encrypted",
+                "flaresolverr_url",
+                "flaresolverr_enabled",
+                "flaresolverr_refresh_seconds",
+                "nnmclub_username",
+                "nnmclub_password_encrypted",
+                "tracker_kinozal_username",
+                "tracker_kinozal_password_encrypted",
+                "tracker_rutracker_username",
+                "tracker_rutracker_password_encrypted",
             }
             relevant = [row for row in rows if row.key in relevant_keys]
             values = {row.key: row.value for row in relevant}
@@ -484,7 +501,10 @@ def _flaresolverr_config(database: Database, settings: Settings, secrets: Secret
         except Exception:
             logger.warning("Stored NNM-Club password cannot be decrypted; using environment value.")
     try:
-        refresh_seconds = max(300, int(values.get("flaresolverr_refresh_seconds", settings.flaresolverr_refresh_seconds)))
+        refresh_seconds = max(
+            300,
+            int(values.get("flaresolverr_refresh_seconds", settings.flaresolverr_refresh_seconds)),
+        )
     except (TypeError, ValueError):
         refresh_seconds = settings.flaresolverr_refresh_seconds
     return {
