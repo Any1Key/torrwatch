@@ -22,6 +22,7 @@ class NotificationChannelRepository:
         channel_type: NotificationChannelType,
         values: dict[str, str],
         event_types: tuple[str, ...],
+        monitor_tags: tuple[str, ...] = (),
     ) -> NotificationChannel:
         self._validate(channel_type, values)
         with self.database.session() as session:
@@ -30,6 +31,7 @@ class NotificationChannelRepository:
                 type=channel_type,
                 encrypted_config=self.secrets.encrypt(json.dumps(values)),
                 event_types_json=json.dumps(event_types),
+                monitor_tags_json=json.dumps(monitor_tags, ensure_ascii=False),
             )
             session.add(channel)
             session.flush()

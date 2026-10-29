@@ -5,8 +5,10 @@ from __future__ import annotations
 import html
 import json
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -63,6 +65,9 @@ def telegram_message(payload: dict[str, object]) -> str:
         lines.append(f"🎬 ID {html.escape(str(tracker_id))}")
     if payload.get("tracker_name"):
         lines.append(f"🌐 Трекер: {html.escape(str(payload['tracker_name']))}")
+    torrent_name = payload.get("torrent_name")
+    if torrent_name and str(torrent_name) != str(name or ""):
+        lines.append(f"📄 Торрент: {html.escape(str(torrent_name))}")
     for icon, label, key in (
         ("📦", "Размер", "size_bytes"),
         ("📁", "Файлов", "file_count"),
@@ -79,8 +84,18 @@ def telegram_message(payload: dict[str, object]) -> str:
     if payload.get("error") or payload.get("last_error"):
         lines.append(f"\nПричина: {html.escape(str(payload.get('error') or payload.get('last_error')))}")
     if payload.get("timestamp"):
-        lines.append(f"🕒 {html.escape(str(payload['timestamp']))}")
+        lines.append(f"🕒 {_format_timestamp(payload['timestamp'])}")
     return "\n".join(lines)
+
+
+def _format_timestamp(value: object) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+        return html.escape(parsed.astimezone(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M:%S"))
+    except (TypeError, ValueError):
+        return html.escape(str(value))
 
 
 def _format_size(value: object) -> str:

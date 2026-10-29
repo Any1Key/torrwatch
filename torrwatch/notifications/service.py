@@ -77,8 +77,24 @@ class NotificationRepository:
             channels = session.scalars(
                 select(NotificationChannel).where(NotificationChannel.enabled.is_(True))
             ).all()
+            monitor_tags: set[str] = set()
+            if payload.get("monitor_id") is not None:
+                monitor = session.get(MonitorItem, int(payload["monitor_id"]))
+                if monitor is not None:
+                    monitor_tags = {
+                        str(tag).strip().casefold()
+                        for tag in json.loads(monitor.tags_json or "[]")
+                        if str(tag).strip()
+                    }
             for channel in channels:
                 if event_type not in json.loads(channel.event_types_json):
+                    continue
+                subscribed_tags = {
+                    str(tag).strip().casefold()
+                    for tag in json.loads(channel.monitor_tags_json or "[]")
+                    if str(tag).strip()
+                }
+                if subscribed_tags and not (subscribed_tags & monitor_tags):
                     continue
                 key = f"notification:{channel.id}:{event_id if event_id is not None else event_type}:{payload.get('release_id', '')}"
                 result = session.execute(

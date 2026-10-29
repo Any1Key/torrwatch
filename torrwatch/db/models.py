@@ -325,6 +325,7 @@ class NotificationChannel(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     encrypted_config: Mapped[str] = mapped_column(Text, nullable=False)
     event_types_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    monitor_tags_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
 
