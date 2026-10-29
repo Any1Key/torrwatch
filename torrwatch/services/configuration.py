@@ -329,6 +329,10 @@ class ConfigurationService:
                 target.canonical_url,
             )
             item.plugin_id, item.external_tracker_id = plugin.manifest.id, target.external_id
+            item.tags_json = json.dumps(
+                [tag.strip() for tag in values.get("tags", "").split(",") if tag.strip()],
+                ensure_ascii=False,
+            )
             item.check_interval_seconds = interval
             item.torrent_client_id, item.proxy_override_id = client_id, proxy_id
             item.client_save_path = storage_path.path if storage_path else None

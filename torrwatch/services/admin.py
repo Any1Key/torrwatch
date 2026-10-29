@@ -285,6 +285,7 @@ class AdminService:
             "canonical_url": item.canonical_url,
             "plugin_id": item.plugin_id,
             "external_tracker_id": item.external_tracker_id,
+            "tags": json.loads(item.tags_json or "[]"),
             "enabled": item.enabled,
             "paused": item.paused,
             "check_interval_seconds": item.check_interval_seconds,

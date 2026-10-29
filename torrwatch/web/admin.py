@@ -244,6 +244,7 @@ FIELDS = {
             "Будет взято из заголовка страницы трекера после первой проверки.",
         ),
         ("url", "URL раздачи", "url", "Конкретная тема или раздача поддерживаемого трекера."),
+        ("tags", "Теги", "text", "Через запятую; пробелы внутри тега сохраняются."),
         (
             "interval_seconds",
             "Интервал, секунды",
@@ -422,6 +423,7 @@ def form(
                     values = {
                         "name": row.name,
                         "url": row.canonical_url,
+                        "tags": ", ".join(json.loads(row.tags_json or "[]")),
                         "interval_seconds": str(row.check_interval_seconds),
                         "client": str(row.torrent_client_id or ""),
                         "proxy": str(row.proxy_override_id or ""),
