@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 from torrwatch.trackers.rutracker.parser import (
     RuTrackerAuthenticationRequired,
     RuTrackerParseError,
+    decode_topic_page,
     parse_topic_page,
 )
 from torrwatch.trackers.types import (
@@ -89,7 +90,9 @@ class RuTrackerPlugin:
             raise _transport_plugin_error(error) from error
         _raise_for_status(response.status_code)
         try:
-            parsed = parse_topic_page(response.text, target.canonical_url, topic_id)
+            parsed = parse_topic_page(
+                decode_topic_page(response.body, response.headers), target.canonical_url, topic_id
+            )
         except RuTrackerAuthenticationRequired as error:
             raise TrackerPluginError(
                 PluginErrorCode.AUTH_REQUIRED, "RuTracker session is required."

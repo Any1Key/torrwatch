@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -15,6 +17,38 @@ class RuTrackerParseError(ValueError):
 
 class RuTrackerAuthenticationRequired(ValueError):
     """The received document is an authentication page, never a release page."""
+
+
+def decode_topic_page(body: bytes, headers: Mapping[str, str]) -> str:
+    """Decode the tracker page without silently corrupting Cyrillic titles."""
+    content_type = next(
+        (value for key, value in headers.items() if key.lower() == "content-type"), ""
+    )
+    charset = re.search(r"charset\s*=\s*[\"']?([\w-]+)", content_type, re.I)
+    if charset is None:
+        charset = re.search(
+            r"<meta\b[^>]*\bcharset\s*=\s*[\"']?([\w-]+)",
+            body[:8192].decode("ascii", errors="replace"),
+            re.I,
+        )
+    encoding = charset.group(1).lower() if charset else None
+    codecs = {
+        "windows-1251": "cp1251",
+        "cp1251": "cp1251",
+        "utf-8": "utf-8-sig",
+        "utf8": "utf-8-sig",
+    }
+    if encoding is not None and encoding not in codecs:
+        raise RuTrackerParseError("RuTracker page encoding is unsupported.")
+    try:
+        if encoding is not None:
+            return body.decode(codecs[encoding])
+        try:
+            return body.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return body.decode("cp1251")
+    except UnicodeDecodeError:
+        raise RuTrackerParseError("RuTracker page encoding is invalid.") from None
 
 
 @dataclass(frozen=True)
