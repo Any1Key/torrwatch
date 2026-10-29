@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
-from contextlib import suppress
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -72,9 +70,11 @@ async def solve_rutracker_topic(
         if c.domain.lstrip(".") == "rutracker.org"
     ]
     client = FlareSolverrClient(endpoint)
-    browser_session = f"torrwatch-topic-{uuid.uuid4().hex}"
+    # Keep the same browser session that the periodic account refresh uses.
+    # A fresh solver session per topic loses the Cloudflare clearance and is
+    # materially less reliable than reusing the authenticated browser context.
+    browser_session = "torrwatch-rutracker-account-1"
     try:
-        await asyncio.wait_for(client.create_session(browser_session), timeout=15)
         solution = await asyncio.wait_for(
             client.request(
                 url=url, session=browser_session, cookies=cookie_data, max_timeout_ms=40000
@@ -111,6 +111,3 @@ async def solve_rutracker_topic(
         )
     except (TimeoutError, FlareSolverrError, RuTrackerAuthenticationRequired, RuTrackerParseError):
         return response
-    finally:
-        with suppress(FlareSolverrError, TimeoutError):
-            await asyncio.wait_for(client.destroy_session(browser_session), timeout=5)

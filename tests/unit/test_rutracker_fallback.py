@@ -31,19 +31,14 @@ def test_challenge_uses_browser_page_and_preserves_session(monkeypatch):
         def __init__(self, endpoint):
             pass
 
-        async def create_session(self, session):
-            state["created"] = session
-
         async def request(self, **kwargs):
+            state["session"] = kwargs["session"]
             return SolverResult(
                 [{"name": "bb_session", "value": "test", "domain": ".rutracker.org"}],
                 "browser",
                 html,
                 200,
             )
-
-        async def destroy_session(self, session):
-            state["destroyed"] = session
 
     monkeypatch.setattr("torrwatch.services.rutracker_fallback.FlareSolverrClient", Solver)
     initial = TransportResponse(403, {"cf-mitigated": "challenge"}, b"", url, 1, 1)
@@ -59,7 +54,7 @@ def test_challenge_uses_browser_page_and_preserves_session(monkeypatch):
     )
     assert result.status_code == 200 and "Название" in result.text
     assert state["saved"] == ("rutracker:account:1", "test", "browser")
-    assert state["created"] == state["destroyed"]
+    assert state["session"] == "torrwatch-rutracker-account-1"
 
 
 def test_challenge_html_with_http_200_uses_browser_page(monkeypatch):
