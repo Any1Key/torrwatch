@@ -40,6 +40,17 @@ EVENT_NOTIFICATION_TYPES = {
 }
 
 
+def _tracker_display_name(plugin_id: str | None) -> str | None:
+    names = {
+        "rutracker": "RuTracker",
+        "nnmclub": "NNM-Club",
+        "kinozal": "Kinozal",
+    }
+    if not plugin_id:
+        return None
+    return names.get(plugin_id, plugin_id)
+
+
 def notification_payload(
     *, event_type: str, message: str, monitor_id: int | None = None, release_id: int | None = None
 ) -> dict[str, object]:
@@ -121,6 +132,7 @@ class NotificationRepository:
                     "initial_baseline": event_code == "INITIAL_BASELINE_ESTABLISHED",
                     "monitor_name": monitor.name,
                     "external_tracker_id": monitor.external_tracker_id,
+                    "tracker_name": _tracker_display_name(monitor.plugin_id),
                     "torrent_name": release.torrent_name if release else None,
                     "size_bytes": release.total_size if release else None,
                     "file_count": release.file_count if release else None,
@@ -151,6 +163,7 @@ class NotificationRepository:
                 {
                     "monitor_name": monitor.name,
                     "external_tracker_id": monitor.external_tracker_id,
+                    "tracker_name": _tracker_display_name(monitor.plugin_id),
                     "torrent_name": release.torrent_name,
                     "size_bytes": release.total_size,
                     "file_count": release.file_count,
@@ -160,7 +173,6 @@ class NotificationRepository:
                 }
             )
         return self.enqueue_for_event(event_type, payload, delivery_id)
-
     def claim_next(self, worker_id: str, lease_seconds: int) -> NotificationJob | None:
         now = now_utc()
         with self.database.session() as session:

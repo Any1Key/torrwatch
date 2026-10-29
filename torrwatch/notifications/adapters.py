@@ -61,6 +61,8 @@ def telegram_message(payload: dict[str, object]) -> str:
         lines.append(f"🎬 {title}")
     elif tracker_id:
         lines.append(f"🎬 ID {html.escape(str(tracker_id))}")
+    if payload.get("tracker_name"):
+        lines.append(f"🌐 Трекер: {html.escape(str(payload['tracker_name']))}")
     for icon, label, key in (
         ("📦", "Размер", "size_bytes"),
         ("📁", "Файлов", "file_count"),
