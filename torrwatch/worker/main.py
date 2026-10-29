@@ -37,6 +37,7 @@ from torrwatch.services.jobs import (
     JobRepository,
     MonitorRepository,
     Scheduler,
+    is_sqlite_busy,
     now_utc,
 )
 from torrwatch.services.monitor_checks import MonitorCheckService
@@ -405,14 +406,20 @@ async def run_worker(settings: Settings) -> None:
                 refresh_task = asyncio.create_task(
                     refresh_tracker_sessions(database, secrets, automation)
                 )
-            work_done = await worker_cycle(
-                database,
-                identity,
-                handler=monitor_handler,
-                lease_seconds=settings.worker_job_lease_seconds,
-                renewal_seconds=settings.worker_lease_renewal_seconds,
-                stop_event=stop_event,
-            )
+            try:
+                work_done = await worker_cycle(
+                    database,
+                    identity,
+                    handler=monitor_handler,
+                    lease_seconds=settings.worker_job_lease_seconds,
+                    renewal_seconds=settings.worker_lease_renewal_seconds,
+                    stop_event=stop_event,
+                )
+            except OperationalError as error:
+                if not is_sqlite_busy(error):
+                    raise
+                logger.warning("Worker database is busy; retrying the cycle.")
+                work_done = 0
             if not stop_event.is_set():
                 work_done += await delivery_cycle(
                     database,

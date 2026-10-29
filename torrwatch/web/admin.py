@@ -15,7 +15,14 @@ from torrwatch.clients.types import TorrentClientError
 from torrwatch.core.logging import read_debug_log_preview, read_debug_logs
 from torrwatch.core.secrets import SecretBox, SecretKeyError
 from torrwatch.core.security import csrf_token, hash_password, require_admin, require_csrf
-from torrwatch.db.models import MonitorItem, ProxyProfile, SystemSetting, TorrentClient, TrackerSession, User
+from torrwatch.db.models import (
+    MonitorItem,
+    ProxyProfile,
+    SystemSetting,
+    TorrentClient,
+    TrackerSession,
+    User,
+)
 from torrwatch.notifications.types import NotificationError
 from torrwatch.services.admin import AdminService, AdminValidationError
 from torrwatch.services.admin_jobs import enqueue_client_test
@@ -122,6 +129,8 @@ async def save_flaresolverr(request: Request) -> RedirectResponse:
 def help_page(request: Request) -> HTMLResponse:
     """Show the built-in TorrWatch setup and operations guide."""
     return render(request, "help.html")
+
+
 # key, label, input kind, help. Sensitive values are never echoed into forms.
 FIELDS = {
     "paths": [
@@ -335,13 +344,13 @@ def monitors(request: Request, selected: int | None = None) -> HTMLResponse:
     chosen = next((item for item in items if item["id"] == selected), None)
     if chosen is None and items:
         chosen = items[0]
-    detail = svc.admin.monitor(chosen["id"]) if chosen else None
+    detail = chosen
     return render(
         request,
         "monitors.html",
         monitors=items,
         selected_monitor=detail,
-        selected_timeline=svc.admin.timeline(detail["id"])[:12] if detail else [],
+        selected_timeline=svc.admin.timeline(detail["id"], limit=12) if detail else [],
         selected_versions=svc.admin.versions(detail["id"]) if detail else [],
         active_monitors=sum(1 for item in items if item["enabled"] and not item["paused"]),
         paused_monitors=sum(1 for item in items if item["paused"]),
@@ -456,9 +465,9 @@ def form(
         plugin_id = str(values.get("plugin", "")).strip()
         account_prefix = "nnmclub" if plugin_id == "nnmclub" else f"tracker_{plugin_id}"
         if plugin_id == "kinozal":
-            values["forced_verification_enabled"] = _setting(
-                request, "tracker_kinozal_forced_verification_enabled"
-            ) or ""
+            values["forced_verification_enabled"] = (
+                _setting(request, "tracker_kinozal_forced_verification_enabled") or ""
+            )
         values["account_username"] = _setting(request, f"{account_prefix}_username") or ""
         if plugin_id == "nnmclub" and not values["account_username"]:
             values["account_username"] = request.app.state.settings.nnmclub_username or ""
@@ -474,11 +483,7 @@ def form(
                 )
         except SecretKeyError:
             account_password_value = ""
-    safe = {
-        key: values.get(key, "")
-        for key, _, kind, _ in FIELDS[resource]
-        if kind != "password"
-    }
+    safe = {key: values.get(key, "") for key, _, kind, _ in FIELDS[resource] if kind != "password"}
     return render(
         request,
         "setup_form.html",
@@ -494,7 +499,11 @@ def form(
         paths=svc.admin.resource("paths"),
         account_password_configured=bool(
             _setting(request, f"{account_prefix}_password_encrypted")
-            or (resource == "sessions" and values.get("plugin") == "nnmclub" and request.app.state.settings.nnmclub_password)
+            or (
+                resource == "sessions"
+                and values.get("plugin") == "nnmclub"
+                and request.app.state.settings.nnmclub_password
+            )
         ),
         account_password_value=account_password_value,
         status_code=422 if error else 200,
@@ -715,9 +724,7 @@ def queues(
         "deliveries": ("Доставка торрентов", "deliveries"),
         "notifications": ("Уведомления", "notification-jobs"),
     }
-    selected_sources = (
-        sources.items() if kind == "all" else [(kind, sources[kind])]
-    )
+    selected_sources = sources.items() if kind == "all" else [(kind, sources[kind])]
     return render(
         request,
         "queues.html",
@@ -728,7 +735,9 @@ def queues(
         groups=[
             (title, template_kind, admin.resource(resource, statuses=statuses, limit=limit))
             for _, (title, resource) in selected_sources
-            for template_kind in (["notification-jobs"] if resource == "notification-jobs" else [resource])
+            for template_kind in (
+                ["notification-jobs"] if resource == "notification-jobs" else [resource]
+            )
         ],
     )
 
@@ -810,7 +819,7 @@ def system(request: Request) -> HTMLResponse:
 
 def _setting(request: Request, key: str) -> str | None:
     with service(request).db.session() as session:
-            return session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
+        return session.scalar(select(SystemSetting.value).where(SystemSetting.key == key))
 
 
 def _system_log_text(

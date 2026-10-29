@@ -124,13 +124,38 @@ class AdminService:
 
     def monitors(self) -> list[dict[str, Any]]:
         with self.database.session() as session:
-            return [
-                self._monitor_dict_with_context(session, item)
-                for item in session.scalars(
-                    select(MonitorItem)
-                    .where(MonitorItem.deleted_at.is_(None))
-                    .order_by(MonitorItem.id)
+            latest_delivery = (
+                select(DeliveryJob.id)
+                .join(ReleaseVersion, DeliveryJob.release_id == ReleaseVersion.id)
+                .where(ReleaseVersion.monitor_id == MonitorItem.id)
+                .order_by(DeliveryJob.created_at.desc(), DeliveryJob.id.desc())
+                .limit(1)
+                .correlate(MonitorItem)
+                .scalar_subquery()
+            )
+            latest_problem = (
+                select(Event.id)
+                .where(
+                    Event.monitor_id == MonitorItem.id,
+                    Event.level.in_(("WARNING", "ERROR", "CRITICAL")),
                 )
+                .order_by(Event.created_at.desc(), Event.id.desc())
+                .limit(1)
+                .correlate(MonitorItem)
+                .scalar_subquery()
+            )
+            query = (
+                select(MonitorItem, ReleaseVersion, TorrentClient, DeliveryJob, Event)
+                .outerjoin(ReleaseVersion, ReleaseVersion.id == MonitorItem.current_release_id)
+                .outerjoin(TorrentClient, TorrentClient.id == MonitorItem.torrent_client_id)
+                .outerjoin(DeliveryJob, DeliveryJob.id == latest_delivery)
+                .outerjoin(Event, Event.id == latest_problem)
+                .where(MonitorItem.deleted_at.is_(None))
+                .order_by(MonitorItem.id)
+            )
+            return [
+                self._context_dict(item, release, client, delivery, problem)
+                for item, release, client, delivery, problem in session.execute(query)
             ]
 
     def retry_delivery(self, delivery_id: int) -> bool:
@@ -189,7 +214,6 @@ class AdminService:
             return self._monitor_dict_with_context(session, item) if item else None
 
     def _monitor_dict_with_context(self, session: Any, item: MonitorItem) -> dict[str, Any]:
-        result = self.monitor_dict(item)
         release = (
             session.get(ReleaseVersion, item.current_release_id)
             if item.current_release_id
@@ -211,6 +235,17 @@ class AdminService:
             .order_by(Event.created_at.desc(), Event.id.desc())
             .limit(1)
         )
+        return self._context_dict(item, release, client, delivery, last_problem)
+
+    def _context_dict(
+        self,
+        item: MonitorItem,
+        release: ReleaseVersion | None,
+        client: TorrentClient | None,
+        delivery: DeliveryJob | None,
+        last_problem: Event | None,
+    ) -> dict[str, Any]:
+        result = self.monitor_dict(item)
         problem_details: dict[str, Any] = {}
         if last_problem is not None:
             try:
@@ -450,15 +485,18 @@ class AdminService:
             )
             return True
 
-    def timeline(self, monitor_id: int) -> list[dict[str, Any]]:
+    def timeline(self, monitor_id: int, *, limit: int | None = None) -> list[dict[str, Any]]:
         with self.database.session() as session:
             if session.get(MonitorItem, monitor_id) is None:
                 return []
-            events = session.scalars(
+            query = (
                 select(Event)
                 .where(Event.monitor_id == monitor_id)
                 .order_by(Event.created_at.desc(), Event.id.desc())
             )
+            if limit is not None:
+                query = query.limit(limit)
+            events = session.scalars(query)
             return [
                 {
                     "id": event.id,
