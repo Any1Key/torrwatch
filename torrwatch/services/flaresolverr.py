@@ -66,9 +66,7 @@ class _LoginFormParser(HTMLParser):
     def _login_form(self) -> dict[str, object] | None:
         for form in self.forms:
             fields = form.get("fields")
-            if isinstance(fields, dict) and any(
-                "password" in str(name).lower() for name in fields
-            ):
+            if isinstance(fields, dict) and any("password" in str(name).lower() for name in fields):
                 return form
         return self.forms[0] if self.forms else None
 
@@ -85,13 +83,14 @@ class FlareSolverrClient:
         session: str,
         cookies: list[dict[str, object]] | None = None,
         post_data: str | None = None,
+        max_timeout_ms: int = 180000,
     ) -> SolverResult:
         payload: dict[str, object] = {
             "cmd": "request.post" if post_data is not None else "request.get",
             "url": url,
             "session": session,
             "session_ttl_minutes": 180,
-            "maxTimeout": 180000,
+            "maxTimeout": max_timeout_ms,
             "returnOnlyCookies": False,
             "cookies": cookies or [],
             "waitInSeconds": 2,
@@ -256,9 +255,7 @@ async def refresh_kinozal(
     await client.reset_session(solver_session)
     result = await client.request(url=home, session=solver_session, cookies=cookies)
     if _is_cloudflare_challenge(result.html) or not _is_login_page(result.html):
-        result = await client.request(
-            url=target, session=solver_session, cookies=result.cookies
-        )
+        result = await client.request(url=target, session=solver_session, cookies=result.cookies)
     if _is_login_page(result.html):
         parser = _LoginFormParser()
         parser.feed(result.html)
@@ -276,7 +273,9 @@ async def refresh_kinozal(
         # that challenge and return the authenticated browser state.
         result = await client.request(url=home, session=solver_session, cookies=result.cookies)
         if _is_cloudflare_challenge(result.html):
-            result = await client.request(url=target, session=solver_session, cookies=result.cookies)
+            result = await client.request(
+                url=target, session=solver_session, cookies=result.cookies
+            )
     if _is_login_page(result.html) or result.status >= 400 or _is_cloudflare_challenge(result.html):
         raise FlareSolverrError("Kinozal login did not produce an authenticated page.")
     parsed = httpx.Cookies()
@@ -339,9 +338,7 @@ async def refresh_rutracker(
             "RuTracker запросил дополнительную CAPTCHA при входе или отклонил логин/пароль."
         )
     if result.status >= 400:
-        raise FlareSolverrError(
-            f"RuTracker returned HTTP {result.status} after login."
-        )
+        raise FlareSolverrError(f"RuTracker returned HTTP {result.status} after login.")
     parsed = httpx.Cookies()
     for item in result.cookies:
         name, value = item.get("name"), item.get("value")

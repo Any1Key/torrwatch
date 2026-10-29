@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from contextlib import suppress
 from urllib.parse import parse_qs, urlsplit
@@ -64,8 +65,13 @@ async def solve_rutracker_topic(
     client = FlareSolverrClient(endpoint)
     browser_session = f"torrwatch-topic-{uuid.uuid4().hex}"
     try:
-        await client.create_session(browser_session)
-        solution = await client.request(url=url, session=browser_session, cookies=cookie_data)
+        await asyncio.wait_for(client.create_session(browser_session), timeout=15)
+        solution = await asyncio.wait_for(
+            client.request(
+                url=url, session=browser_session, cookies=cookie_data, max_timeout_ms=40000
+            ),
+            timeout=45,
+        )
         if solution.status != 200:
             return response
         parse_topic_page(solution.html, url, topic[0])
@@ -94,8 +100,8 @@ async def solve_rutracker_topic(
             response.elapsed_ms,
             response.attempts,
         )
-    except (FlareSolverrError, RuTrackerAuthenticationRequired, RuTrackerParseError):
+    except (TimeoutError, FlareSolverrError, RuTrackerAuthenticationRequired, RuTrackerParseError):
         return response
     finally:
-        with suppress(FlareSolverrError):
-            await client.destroy_session(browser_session)
+        with suppress(FlareSolverrError, TimeoutError):
+            await asyncio.wait_for(client.destroy_session(browser_session), timeout=5)
