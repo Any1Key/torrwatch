@@ -24,6 +24,7 @@ from torrwatch.db.models import (
 from torrwatch.domain.enums import InitialSyncMode, JobStatus, MonitorStatus
 from torrwatch.notifications.service import NotificationRepository
 from torrwatch.services.jobs import JobExecutionFailure, now_utc
+from torrwatch.services.rutracker_fallback import solve_rutracker_topic
 from torrwatch.torrent import TorrentMetadata, TorrentStore, TorrentValidationError
 from torrwatch.trackers.context import PluginHttpClient, ScopedPluginSecrets, TrackerPluginContext
 from torrwatch.trackers.registry import PluginNotFoundError, PluginRegistry
@@ -103,17 +104,37 @@ class MonitorCheckService:
 
         scope = f"monitor:{snapshot.id}"
         state = PluginStateNamespace(self._database, plugin.manifest.id, scope)
+        namespace = self._session_namespace(plugin.manifest.id, snapshot)
+
+        async def challenge_fallback(url, response):
+            if (
+                plugin.manifest.id != "rutracker"
+                or snapshot.proxy_profile_id is not None
+                or self._transport.sessions is None
+            ):
+                return response
+            return await solve_rutracker_topic(
+                url,
+                response,
+                database=self._database,
+                settings=self._settings,
+                sessions=self._transport.sessions,
+                namespace=namespace,
+            )
+
         context = TrackerPluginContext(
             http=PluginHttpClient(
                 self._transport,
                 allowed_hosts=set(plugin.manifest.domains),
-                session_namespace=self._session_namespace(plugin.manifest.id, snapshot),
+                session_namespace=namespace,
                 proxy_profile_id=snapshot.proxy_profile_id,
+                challenge_fallback=challenge_fallback
+                if plugin.manifest.id == "rutracker"
+                else None,
             ),
             state=state,
             secrets=ScopedPluginSecrets(),
         )
-        namespace = self._session_namespace(plugin.manifest.id, snapshot)
         with self._database.session() as session:
             saved = session.scalar(
                 select(TrackerSession).where(TrackerSession.namespace == namespace)

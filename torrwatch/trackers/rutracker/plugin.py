@@ -88,6 +88,11 @@ class RuTrackerPlugin:
             response = await ctx.http.request("GET", target.canonical_url)
         except TransportError as error:
             raise _transport_plugin_error(error) from error
+        if response.headers.get("cf-mitigated", "").lower() == "challenge":
+            raise TrackerPluginError(
+                PluginErrorCode.TRACKER_UNAVAILABLE,
+                "RuTracker access is blocked by a Cloudflare challenge.",
+            )
         _raise_for_status(response.status_code)
         try:
             parsed = parse_topic_page(

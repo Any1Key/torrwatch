@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 
 from torrwatch.trackers.state import PluginStateNamespace
@@ -19,11 +19,14 @@ class PluginHttpClient:
         allowed_hosts: set[str],
         session_namespace: str | None,
         proxy_profile_id: int | None,
+        challenge_fallback: Callable[[str, TransportResponse], Awaitable[TransportResponse]]
+        | None = None,
     ) -> None:
         self._transport = transport
         self._allowed_hosts = frozenset(allowed_hosts)
         self._session_namespace = session_namespace
         self._proxy_profile_id = proxy_profile_id
+        self._challenge_fallback = challenge_fallback
 
     async def request(
         self,
@@ -35,7 +38,7 @@ class PluginHttpClient:
         data: Mapping[str, str] | None = None,
         safe_to_retry: bool = False,
     ) -> TransportResponse:
-        return await self._transport.request(
+        response = await self._transport.request(
             method,
             url,
             headers=headers,
@@ -46,6 +49,9 @@ class PluginHttpClient:
             safe_to_retry=safe_to_retry,
             allowed_hosts=set(self._allowed_hosts),
         )
+        if method.upper() == "GET" and self._challenge_fallback is not None:
+            return await self._challenge_fallback(url, response)
+        return response
 
 
 @dataclass(frozen=True)

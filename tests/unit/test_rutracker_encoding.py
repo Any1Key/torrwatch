@@ -26,3 +26,9 @@ def test_topic_title_is_decoded(encoding, headers, meta):
 def test_invalid_declared_utf8_is_rejected():
     with pytest.raises(RuTrackerParseError):
         decode_topic_page("Название".encode("cp1251"), {"content-type": "text/html; charset=utf-8"})
+
+
+def test_topic_with_login_mentioned_in_text_is_not_a_login_form():
+    url = "https://rutracker.org/forum/viewtopic.php?t=123"
+    html = '<meta property="og:title" content="Название"><p>Вход в систему и login</p><a href="dl.php?t=123">download</a>'
+    assert parse_topic_page(html, url, "123").title == "Название"

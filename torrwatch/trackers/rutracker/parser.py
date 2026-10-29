@@ -133,8 +133,6 @@ class _TopicPageParser(HTMLParser):
             self._title_parts.append(text)
         if self._document_title and text:
             self._document_title_parts.append(text)
-        if "вход" in text.lower() or "login" in text.lower():
-            self.auth_markers = True
 
     @property
     def document_title(self) -> str | None:
