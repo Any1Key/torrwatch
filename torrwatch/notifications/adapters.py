@@ -65,6 +65,9 @@ def telegram_message(payload: dict[str, object]) -> str:
         lines.append(f"🎬 ID {html.escape(str(tracker_id))}")
     if payload.get("tracker_name"):
         lines.append(f"🌐 Трекер: {html.escape(str(payload['tracker_name']))}")
+    tags = payload.get("monitor_tags")
+    if isinstance(tags, (list, tuple)) and tags:
+        lines.append(f"🏷 Теги: {html.escape(', '.join(str(tag) for tag in tags))}")
     torrent_name = payload.get("torrent_name")
     if torrent_name and str(torrent_name) != str(name or ""):
         lines.append(f"📄 Торрент: {html.escape(str(torrent_name))}")
