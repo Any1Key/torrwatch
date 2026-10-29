@@ -34,8 +34,17 @@ async def solve_rutracker_topic(
 ) -> TransportResponse:
     parsed = urlsplit(url)
     topic = parse_qs(parsed.query).get("t", [])
-    challenged = response.headers.get("cf-mitigated", "").lower() == "challenge" or (
-        response.status_code == 403 and b"/cdn-cgi/challenge-platform/" in response.body
+    # Cloudflare does not always return a 403: depending on the edge node it
+    # can serve the challenge shell with HTTP 200.  In that case the old
+    # status-only check let the parser see the challenge HTML and the monitor
+    # failed before the browser fallback had a chance to run.
+    body = response.body.lower()
+    challenged = (
+        response.headers.get("cf-mitigated", "").lower() == "challenge"
+        or b"/cdn-cgi/challenge-platform/" in body
+        or b"cf-chl-" in body
+        or b"just a moment..." in body
+        or b"enable javascript and cookies to continue" in body
     )
     if (
         not challenged
