@@ -7,6 +7,7 @@
     {% if resource != 'sessions' %}<a class="button" href="/configure/{{ resource }}">+ {{ section[1] }}</a>{% endif %}
   </div>
 </header>
+{% if resource == 'proxies' %}<section class="card settings-card"><div class="settings-card-head"><div><span class="badge">Маршрутизация</span><h2>Прокси по умолчанию</h2><p>Используется, если у монитора и учётной записи трекера не выбран свой профиль.</p></div></div><form method="post" action="/proxies/default"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label class="field" for="default_proxy_profile_id"><span>Глобальный профиль</span><select id="default_proxy_profile_id" name="default_proxy_profile_id"><option value="">Прямое подключение</option>{% for proxy in rows %}<option value="{{ proxy.id }}" {% if default_proxy_profile_id == proxy.id|string %}selected{% endif %}>{{ proxy.name }}{% if not proxy.enabled %} · выключен{% endif %}</option>{% endfor %}</select></label><div class="actions"><button type="submit">Сохранить профиль по умолчанию</button></div></form></section>{% endif %}
 {% if resource == 'sessions' %}
 <div class="tracker-list">
   {% for row in rows %}<a class="tracker-row" href="/configure/sessions?plugin={{ row.id }}">

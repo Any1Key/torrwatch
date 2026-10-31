@@ -244,6 +244,7 @@ FIELDS = {
     ],
     "sessions": [
         ("plugin", "Трекер", "plugins", ""),
+        ("proxy", "Прокси для этого трекера", "proxies", "Необязательно. Используется всеми мониторами этого трекера, если у монитора не выбран собственный профиль."),
         (
             "account_username",
             "Логин учётной записи",
@@ -290,7 +291,8 @@ FIELDS = {
             "paths",
             "Необязательно. Выберите именованный путь для загрузки.",
         ),
-        ("proxy", "Прокси", "proxies", "Необязательно; без профиля — Direct."),
+        ("proxy_override", "Отдельный прокси для этого монитора", "checkbox", "Оставьте выключенным, чтобы использовать глобальный или трекерный профиль."),
+        ("proxy", "Прокси", "proxies", "Профиль, который будет использовать только этот монитор."),
         ("enabled", "Включён", "checkbox", ""),
         ("paused", "На паузе", "checkbox", ""),
     ],
@@ -310,8 +312,6 @@ def render(request: Request, template: str, **values: Any) -> HTMLResponse:
     for section in (*SECTIONS, "monitors"):
         if active_path.startswith(f"/configure/{section}") or active_path == f"/settings/{section}":
             active_path = "/settings/sessions" if section == "sessions" else f"/{section}"
-    if active_path == "/settings":
-        active_path = "/system"
     health = AdminService(request.app.state.database, request.app.state.plugin_registry).dashboard()
     heartbeat = health.get("worker_heartbeat")
     worker_ok = False
@@ -414,6 +414,9 @@ def listing(request: Request, resource: str) -> HTMLResponse:
         section=SECTIONS[resource],
         rows=rows,
         jobs=jobs,
+        default_proxy_profile_id=_setting(request, "default_proxy_profile_id") or ""
+        if resource == "proxies"
+        else "",
     )
 
 
@@ -454,6 +457,7 @@ def form(
                         "interval_seconds": str(row.check_interval_seconds),
                         "client": str(row.torrent_client_id or ""),
                         "proxy": str(row.proxy_override_id or ""),
+                        "proxy_override": "on" if row.proxy_override_id else "",
                         "storage_path": next(
                             (
                                 str(path["id"])
@@ -497,6 +501,11 @@ def form(
     account_prefix = ""
     if resource == "sessions":
         plugin_id = str(values.get("plugin", "")).strip()
+        with svc.db.session() as session:
+            tracker_session = session.scalar(
+                select(TrackerSession).where(TrackerSession.namespace == f"{plugin_id}:account:1")
+            ) if plugin_id else None
+        values["proxy"] = str(tracker_session.proxy_profile_id or "") if tracker_session else ""
         account_prefix = "nnmclub" if plugin_id == "nnmclub" else f"tracker_{plugin_id}"
         if plugin_id == "kinozal":
             values["forced_verification_enabled"] = (
@@ -530,6 +539,7 @@ def form(
         plugins=svc.admin.trackers(),
         clients=svc.admin.resource("clients"),
         proxies=svc.admin.resource("proxies"),
+        default_proxy_profile_id=_setting(request, "default_proxy_profile_id") or "",
         paths=svc.admin.resource("paths"),
         account_password_configured=bool(
             _setting(request, f"{account_prefix}_password_encrypted")
@@ -823,7 +833,6 @@ async def change_password(request: Request) -> RedirectResponse:
 
 
 @router.get("/system")
-@router.get("/settings")
 def system(request: Request) -> HTMLResponse:
     svc = service(request)
     state = svc.admin.system()
@@ -849,6 +858,11 @@ def system(request: Request) -> HTMLResponse:
         debug_redact_secrets=_setting(request, "debug_redact_secrets") != "false",
         passwordless_login=_setting(request, "passwordless_login") == "true",
     )
+
+
+@router.get("/settings", response_class=HTMLResponse)
+def settings_overview(request: Request) -> HTMLResponse:
+    return render(request, "settings_overview.html")
 
 
 def _setting(request: Request, key: str) -> str | None:
@@ -890,6 +904,29 @@ def _canonical_timezone(value: str | None) -> str:
     choices = ("Europe/Moscow", "UTC", "Europe/Berlin", "Asia/Almaty")
     raw = (value or "Europe/Moscow").strip()
     return next((choice for choice in choices if choice.lower() == raw.lower()), "Europe/Moscow")
+
+
+@router.post("/proxies/default")
+async def save_default_proxy(request: Request) -> RedirectResponse:
+    data = await request.form()
+    require_csrf(request, str(data.get("csrf", "")))
+    value = str(data.get("default_proxy_profile_id", "")).strip()
+    if value:
+        try:
+            proxy_id = int(value)
+        except ValueError:
+            raise HTTPException(422, "Недопустимый прокси-профиль.") from None
+        with request.app.state.database.session() as session:
+            proxy = session.get(ProxyProfile, proxy_id)
+            if proxy is None or not proxy.enabled:
+                raise HTTPException(422, "Выберите включённый прокси-профиль.")
+    with request.app.state.database.session() as session:
+        row = session.get(SystemSetting, "default_proxy_profile_id")
+        if row is None:
+            session.add(SystemSetting(key="default_proxy_profile_id", value=value))
+        else:
+            row.value = value
+    return redirect(request, "/proxies", "Прокси по умолчанию сохранён.")
 
 
 @router.post("/system/settings")

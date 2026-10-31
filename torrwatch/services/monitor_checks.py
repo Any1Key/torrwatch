@@ -31,6 +31,7 @@ from torrwatch.trackers.registry import PluginNotFoundError, PluginRegistry
 from torrwatch.trackers.state import PluginStateNamespace
 from torrwatch.trackers.types import PluginErrorCode, RemoteReleaseState, TrackerPluginError
 from torrwatch.transport.http import HttpTransport
+from torrwatch.transport.proxy import ProxyService
 
 AUTH_RETRY_SECONDS = 21_600
 PARSER_RETRY_SECONDS = 10_800
@@ -292,11 +293,31 @@ class MonitorCheckService:
                 if monitor.current_release_id is not None
                 else None
             )
+            tracker_proxy_id = None
+            if monitor.plugin_id:
+                tracker_session = session.scalar(
+                    select(TrackerSession).where(
+                        TrackerSession.namespace == f"{monitor.plugin_id}:account:{monitor.tracker_account_id or 1}"
+                    )
+                )
+                tracker_proxy_id = tracker_session.proxy_profile_id if tracker_session else None
+            global_proxy = session.scalar(
+                select(SystemSetting.value).where(SystemSetting.key == "default_proxy_profile_id")
+            )
+            try:
+                global_proxy_id = int(global_proxy) if global_proxy else None
+            except ValueError:
+                global_proxy_id = None
+            selected_proxy_id = ProxyService.select_profile_id(
+                monitor_override_id=monitor.proxy_override_id,
+                tracker_account_id=tracker_proxy_id,
+                global_default_id=global_proxy_id,
+            )
             return _MonitorSnapshot(
                 id=monitor.id,
                 original_url=monitor.original_url,
                 plugin_id=monitor.plugin_id,
-                proxy_profile_id=monitor.proxy_override_id,
+                proxy_profile_id=selected_proxy_id,
                 tracker_account_id=monitor.tracker_account_id,
                 torrent_client_id=monitor.torrent_client_id,
                 initial_sync_mode=InitialSyncMode(monitor.initial_sync_mode),

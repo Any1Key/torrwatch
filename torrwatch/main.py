@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import uvicorn
@@ -18,11 +19,11 @@ from torrwatch.api.routes import router, templates
 from torrwatch.core.config import Settings, get_settings
 from torrwatch.core.logging import configure_debug_logging
 from torrwatch.core.runtime import ensure_runtime_files
-from torrwatch.core.security import USER_SESSION_KEY, csrf_token
+from torrwatch.core.security import SESSION_EXPIRES_KEY, USER_SESSION_KEY, csrf_token
 from torrwatch.db.bootstrap import bootstrap_admin
 from torrwatch.db.database import Database
 from torrwatch.db.migrations import upgrade_database
-from torrwatch.db.models import SystemSetting
+from torrwatch.db.models import SystemSetting, User
 from torrwatch.trackers.loader import load_plugin_registry
 from torrwatch.web.admin import router as browser_router
 
@@ -35,6 +36,15 @@ public_router = APIRouter()
 @public_router.get("/", response_class=HTMLResponse, include_in_schema=False, response_model=None)
 def public_home(request: Request) -> HTMLResponse | RedirectResponse:
     if isinstance(request.session.get(USER_SESSION_KEY), int):
+        return RedirectResponse("/dashboard", status_code=303)
+    with request.app.state.database.session() as session:
+        passwordless = session.scalar(
+            select(SystemSetting.value).where(SystemSetting.key == "passwordless_login")
+        ) == "true"
+        user = session.scalar(select(User).where(User.disabled.is_(False)).order_by(User.id).limit(1))
+    if passwordless and user is not None:
+        request.session[USER_SESSION_KEY] = user.id
+        request.session[SESSION_EXPIRES_KEY] = (datetime.now(UTC) + timedelta(hours=12)).isoformat()
         return RedirectResponse("/dashboard", status_code=303)
     return templates.TemplateResponse(
         request=request,

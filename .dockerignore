@@ -6,6 +6,9 @@
 # Persistent runtime state is mounted at /data and is never image input.
 data/
 
+# Community documentation and screenshots are not part of the runtime image.
+docs/
+
 # Python bytecode and local tool output.
 __pycache__/
 *.py[cod]

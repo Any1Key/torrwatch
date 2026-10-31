@@ -89,7 +89,16 @@ def metrics() -> Response:
 
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
-def login_form(request: Request) -> HTMLResponse:
+def login_form(request: Request) -> Response:
+    with request.app.state.database.session() as session:
+        passwordless = session.scalar(
+            select(SystemSetting.value).where(SystemSetting.key == "passwordless_login")
+        ) == "true"
+        user = session.scalar(select(User).where(User.disabled.is_(False)).order_by(User.id).limit(1))
+    if passwordless and user is not None:
+        request.session[USER_SESSION_KEY] = user.id
+        request.session[SESSION_EXPIRES_KEY] = (datetime.now(UTC) + timedelta(hours=12)).isoformat()
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
@@ -115,19 +124,8 @@ def login(
                 )
                 == "true"
             )
-        local = request.client is not None and request.client.host in {
-            "127.0.0.1",
-            "::1",
-            "localhost",
-        }
-        valid_password = (
-            passwordless
-            and local
-            or (
-                bool(password)
-                and user is not None
-                and verify_password(user.password_hash, password)
-            )
+        valid_password = passwordless or (
+            bool(password) and user is not None and verify_password(user.password_hash, password)
         )
         if user is None or user.disabled or not valid_password:
             return templates.TemplateResponse(

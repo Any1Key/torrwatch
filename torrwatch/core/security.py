@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import hmac
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
 from fastapi import HTTPException, Request, status
+from sqlalchemy import select
 
 from torrwatch.db.database import Database
-from torrwatch.db.models import User
+from torrwatch.db.models import SystemSetting, User
 
 PASSWORD_HASHER = PasswordHasher()
 CSRF_SESSION_KEY = "csrf_token"
@@ -63,6 +64,21 @@ def require_csrf(request: Request, submitted_token: str) -> None:
 def require_admin(request: Request) -> User:
     user_id = request.session.get(USER_SESSION_KEY)
     if not isinstance(user_id, int):
+        database: Database = request.app.state.database
+        with database.session() as database_session:
+            passwordless = database_session.scalar(
+                select(SystemSetting.value).where(SystemSetting.key == "passwordless_login")
+            ) == "true"
+            if passwordless:
+                user = database_session.scalar(
+                    select(User).where(User.disabled.is_(False)).order_by(User.id).limit(1)
+                )
+                if user is not None:
+                    request.session[USER_SESSION_KEY] = user.id
+                    request.session[SESSION_EXPIRES_KEY] = (
+                        datetime.now(UTC) + timedelta(hours=12)
+                    ).isoformat()
+                    return user
         _authentication_required(request)
     expires = request.session.get(SESSION_EXPIRES_KEY)
     if isinstance(expires, str):

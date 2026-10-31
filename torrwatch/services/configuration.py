@@ -152,6 +152,16 @@ class ConfigurationService:
                         s.add(SystemSetting(key=key, value=value))
                     else:
                         row.value = value
+            proxy_id = int(values["proxy"]) if values.get("proxy") else None
+            with self.db.session() as s:
+                proxy = s.get(ProxyProfile, proxy_id) if proxy_id else None
+                if proxy_id and (proxy is None or not proxy.enabled):
+                    raise ValueError("proxy")
+                session = s.scalar(select(TrackerSession).where(TrackerSession.namespace == f"{plugin.manifest.id}:account:1"))
+                if session is None:
+                    session = TrackerSession(namespace=f"{plugin.manifest.id}:account:1")
+                session.proxy_profile_id = proxy_id
+                s.add(session)
             return 1
 
         with self.db.session() as s:
@@ -299,7 +309,7 @@ class ConfigurationService:
             raise ValueError("interval_seconds")
         plugin, target = self.admin.registry.resolve(values["url"])
         client_id = int(values["client"]) if values.get("client") else None
-        proxy_id = int(values["proxy"]) if values.get("proxy") else None
+        proxy_id = int(values["proxy"]) if values.get("proxy_override") == "on" and values.get("proxy") else None
         with self.db.session() as s:
             client = s.get(TorrentClient, client_id) if client_id else None
             proxy = s.get(ProxyProfile, proxy_id) if proxy_id else None
