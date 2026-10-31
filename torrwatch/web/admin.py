@@ -17,6 +17,7 @@ from torrwatch.core.secrets import SecretBox, SecretKeyError
 from torrwatch.core.security import csrf_token, hash_password, require_admin, require_csrf
 from torrwatch.db.models import (
     MonitorItem,
+    NotificationChannel,
     ProxyProfile,
     SystemSetting,
     TorrentClient,
@@ -40,7 +41,7 @@ SECTIONS = {
     "sessions": (
         "Трекеры и сессии",
         "Настроить учётную запись",
-        "Укажите логин и пароль трекера. Для NNM-Club сессия обновляется автоматически.",
+        "Подключите трекеры и проверьте состояние их сессий. Секреты хранятся зашифрованными.",
     ),
     "proxies": (
         "Прокси-профили",
@@ -55,7 +56,7 @@ SECTIONS = {
     "notifications": (
         "Уведомления",
         "Добавить уведомление",
-        "Получайте сообщения через Telegram или webhook. Этот шаг необязателен.",
+        "Настройте Telegram или webhook, события и теги мониторов для каждого канала.",
     ),
 }
 
@@ -70,6 +71,11 @@ def integrations(request: Request) -> HTMLResponse:
     return render(
         request,
         "integrations.html",
+        telegram_channels=[
+            row for row in AdminService(request.app.state.database, request.app.state.plugin_registry)
+            .resource("notifications")
+            if row.get("type") == "TELEGRAM"
+        ],
         flaresolverr_url=_setting(request, "flaresolverr_url")
         or str(request.app.state.settings.flaresolverr_url or ""),
         flaresolverr_enabled=_setting(request, "flaresolverr_enabled") != "false",
@@ -90,6 +96,21 @@ def integrations(request: Request) -> HTMLResponse:
             if tracker_session and tracker_session.last_successful_auth_at
             else None
         ),
+    )
+
+
+@router.get("/connections", response_class=HTMLResponse)
+def connections(request: Request) -> HTMLResponse:
+    admin = AdminService(request.app.state.database, request.app.state.plugin_registry)
+    return render(
+        request,
+        "connections.html",
+        connection_counts={
+            "sessions": len(admin.trackers()),
+            "clients": len(admin.resource("clients")),
+            "proxies": len(admin.resource("proxies")),
+            "paths": len(admin.resource("paths")),
+        },
     )
 
 
@@ -212,6 +233,12 @@ FIELDS = {
             "Типы событий",
             "text",
             "Через запятую: UPDATE_DETECTED, DELIVERY_SUCCESS, DELIVERY_FAILED, TRACKER_AUTH_FAILED, TRACKER_BROKEN, CLIENT_UNAVAILABLE, SYSTEM_ERROR.",
+        ),
+        (
+            "monitor_tags",
+            "Теги мониторов",
+            "text",
+            "Оставьте пустым для всех мониторов; несколько тегов — через запятую.",
         ),
         ("enabled", "Включён", "checkbox", ""),
     ],
@@ -379,7 +406,7 @@ def listing(request: Request, resource: str) -> HTMLResponse:
         raise HTTPException(404)
     svc = service(request)
     rows = svc.sessions() if resource == "sessions" else svc.admin.resource(resource)
-    jobs = svc.admin.resource("notification-jobs") if resource == "notifications" else []
+    jobs = svc.admin.resource("notification-jobs", limit=50) if resource == "notifications" else []
     return render(
         request,
         "configuration.html",
@@ -450,6 +477,11 @@ def form(
                 values["fallback"] = str(row_dict.get("fallback_mode", "DISABLED"))
                 if resource == "notifications":
                     values["events"] = ",".join(json.loads(row_dict["event_types_json"]))
+                    with svc.db.session() as s:
+                        channel = s.get(NotificationChannel, ident)
+                        values["monitor_tags"] = ", ".join(
+                            json.loads(channel.monitor_tags_json or "[]") if channel else []
+                        )
                 if resource == "proxies":
                     with svc.db.session() as s:
                         proxy = s.get(ProxyProfile, ident)
@@ -719,7 +751,7 @@ def queues(
         "all": None,
     }
     statuses = status_filters[show]
-    limit = 100
+    limit = 50
     admin = service(request).admin
     sources = {
         "jobs": ("Проверки и операции клиента", "jobs"),
@@ -825,7 +857,7 @@ def _setting(request: Request, key: str) -> str | None:
 
 
 def _system_log_text(
-    request: Request, svc: Any, *, preview: bool = False, max_lines: int = 500
+    request: Request, svc: Any, *, preview: bool = False, max_lines: int = 300
 ) -> str:
     """Build the diagnostic text for either the bounded view or full download."""
     redact_secrets = _setting(request, "debug_redact_secrets") != "false"
@@ -904,10 +936,10 @@ def logs(request: Request) -> PlainTextResponse:
 
 
 @router.get("/logs", response_class=HTMLResponse)
-def log_page(request: Request, limit: int = 500) -> HTMLResponse:
+def log_page(request: Request, limit: int = 300) -> HTMLResponse:
     """Dedicated operational log viewer; downloading remains /system/logs."""
     svc = service(request)
-    limit = max(100, min(limit, 2000))
+    limit = max(100, min(limit, 1000))
     return render(
         request,
         "logs.html",
@@ -931,7 +963,7 @@ def events(
     return render(
         request,
         "events.html",
-        events=admin.filtered_events(monitor_id=parsed_monitor_id, level=level, query=query),
+        events=admin.filtered_events(monitor_id=parsed_monitor_id, level=level, query=query)[:50],
         monitors=admin.monitors(),
         filters={"monitor_id": parsed_monitor_id, "level": level, "query": query},
     )

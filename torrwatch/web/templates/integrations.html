@@ -1,19 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Интеграции · TorrWatch{% endblock %}
+{% block title %}Сервисы и автоматизация · TorrWatch{% endblock %}
 {% block content %}
 <header class="page-head">
-  <div><p class="eyebrow">СЕРВИСЫ И АВТОМАТИЗАЦИЯ</p><h1>Интеграции</h1><p>Настройте автоматическую работу TorrWatch с внешними сервисами.</p></div>
+  <div><p class="eyebrow">СЕРВИСЫ И АВТОМАТИЗАЦИЯ</p><h1>Сервисы и автоматизация</h1><p>Настройте автоматическую работу TorrWatch с внешними сервисами.</p></div>
 </header>
 <div class="cards">
   <section class="card">
     <span class="badge">Автоматизация</span>
-    <h2>FlareSolverr · NNM-Club и Kinozal</h2>
-    <p>Автоматически обновляет сессию трекера, когда Cloudflare или срок действия технической сессии мешают проверке раздач.</p>
+    <h2>FlareSolverr</h2>
+    <p>Сервис автоматического прохождения Cloudflare для проверок, которым требуется браузерная сессия.</p>
     <dl class="compact-list">
       <dt>Сервис</dt><dd>{{ flaresolverr_url or 'Не настроен' }}</dd>
       <dt>Состояние</dt><dd>{{ 'Включено' if flaresolverr_enabled else 'Отключено' }}</dd>
       <dt>Интервал</dt><dd>{{ flaresolverr_refresh_seconds // 60 }} мин.</dd>
-      <dt>Сессия NNM-Club</dt><dd>{{ nnmclub_session.auth_status if nnmclub_session else 'Не импортирована' }}{% if nnmclub_last_successful_auth_at %} · {{ nnmclub_last_successful_auth_at|pretty_datetime(timezone) }}{% endif %}</dd>
     </dl>
     <form method="post" action="/integrations/flaresolverr">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
@@ -22,20 +21,17 @@
       <label class="check-row"><input type="checkbox" name="flaresolverr_enabled" {% if flaresolverr_enabled %}checked{% endif %}> Включить автоматическое обновление</label>
       <div class="actions"><button type="submit">Сохранить настройки</button></div>
     </form>
-    <p><a class="button secondary" href="/configure/sessions?plugin=nnmclub">Настроить учётную запись NNM-Club</a></p>
-    <p class="muted">Пароль хранится зашифрованным. Worker подхватит изменения из формы в следующем цикле; перезапуск для настроек не нужен.</p>
+    <p class="muted">Worker подхватит изменения из формы в следующем цикле; перезапуск для настроек не нужен.</p>
   </section>
   <section class="card">
-    <span class="badge">Запланировано</span>
-    <h2>Telegram-бот</h2>
-    <p>Уведомления о новых версиях раздач, ошибках проверок и доставке в торрент-клиент.</p>
-    <p class="muted">Настройки токена бота, chat ID и тестовое сообщение появятся здесь после подключения интеграции.</p>
-  </section>
-  <section class="card">
-    <span class="badge">Настроить</span>
+    <span class="badge">Статус</span>
     <h2>Уведомления</h2>
-    <p>Настройка каналов уведомлений и история отправок событий TorrWatch.</p>
-    <div class="actions"><a class="button secondary" href="/notifications">Открыть уведомления</a></div>
+    <p>Telegram и Webhook управляются в отдельном разделе, чтобы настройки каналов, событий и тегов были в одном месте.</p>
+    <dl class="compact-list">
+      <dt>Telegram-каналов</dt><dd>{{ telegram_channels|length }}</dd>
+      <dt>Активных</dt><dd>{{ telegram_channels|selectattr('enabled')|list|length }}</dd>
+    </dl>
+    <div class="actions"><a class="button secondary" href="/notifications">Управлять уведомлениями →</a></div>
   </section>
 </div>
 {% endblock %}

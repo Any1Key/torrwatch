@@ -3,7 +3,7 @@
 <header class="page-head">
   <div>
     <p class="eyebrow">НАСТРОЙКА</p>
-    <h1>{{ 'Редактировать' if ident else 'Настроить' }} {{ {'monitors':'монитор','sessions':'учётную запись трекера','clients':'торрент-клиент','proxies':'прокси','paths':'путь хранения','notifications':'уведомление'}[resource] }}</h1>
+    <h1>{{ 'Редактировать' if ident else 'Настроить' }} {{ {'monitors':'монитор','sessions':'учётную запись трекера','clients':'торрент-клиент','proxies':'прокси','paths':'путь хранения','notifications':'канал уведомлений'}[resource] }}</h1>
     <p>{% if resource == 'sessions' %}Данные выбранного трекера. Логин и пароль хранятся зашифрованными, а техническая сессия NNM-Club и Kinozal обновляется через FlareSolverr.{% else %}Секретные поля хранятся зашифрованными.{% endif %}</p>
   </div>
 </header>
@@ -12,6 +12,10 @@
   {% if error %}<div class="alert" role="alert" id="form-error">{{ error }}</div>{% endif %}
   {% for key,label,kind,help in fields %}
   {% if not (resource == 'sessions' and key == 'forced_verification_enabled' and values.get('plugin') != 'kinozal') %}
+  {% if resource == 'monitors' and key == 'name' %}<h2 class="form-section-title">Раздача</h2>{% endif %}
+  {% if resource == 'monitors' and key == 'interval_seconds' %}<h2 class="form-section-title">Проверка и доставка</h2>{% endif %}
+  {% if resource == 'monitors' and key == 'enabled' %}<h2 class="form-section-title">Состояние</h2>{% endif %}
+  {% if resource == 'notifications' and key == 'events' %}<h2 class="form-section-title">Фильтрация уведомлений</h2>{% endif %}
   <div class="field" data-field="{{ key }}">
     <label for="{{ key }}">{{ label }}{% if key in ['type','plugin','path'] or (key=='name' and resource != 'monitors') %} <span aria-label="обязательно">*</span>{% endif %}</label>
     {% if resource == 'sessions' and key == 'plugin' %}

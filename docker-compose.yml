@@ -10,6 +10,11 @@ services:
       LOG_LEVEL: error
       TZ: Europe/Moscow
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 
@@ -23,6 +28,11 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
@@ -41,6 +51,11 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true

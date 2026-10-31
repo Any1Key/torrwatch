@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Подключения · TorrWatch{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><p class="eyebrow">ИНФРАСТРУКТУРА</p><h1>Подключения</h1><p>Все внешние сервисы, которыми пользуется Worker.</p></div>
+</header>
+<div class="settings-grid">
+  <section class="card settings-card"><div class="settings-card-head"><div><span class="badge">Трекеры</span><h2>Трекеры и сессии</h2><p>Авторизация, Cookie и состояние доступа к трекерам.</p></div><span class="settings-icon">↗</span></div><p><strong>{{ connection_counts.sessions }}</strong> доступных трекеров</p><a class="button secondary" href="/settings/sessions">Открыть трекеры</a></section>
+  <section class="card settings-card"><div class="settings-card-head"><div><span class="badge">Доставка</span><h2>Торрент-клиенты</h2><p>Transmission и qBittorrent для добавления обновлений.</p></div><span class="settings-icon">↗</span></div><p><strong>{{ connection_counts.clients }}</strong> настроенных клиентов</p><a class="button secondary" href="/clients">Открыть клиентов</a></section>
+  <section class="card settings-card"><div class="settings-card-head"><div><span class="badge">Маршрутизация</span><h2>Прокси-профили</h2><p>Маршруты и резервные варианты подключения к трекерам.</p></div><span class="settings-icon">↗</span></div><p><strong>{{ connection_counts.proxies }}</strong> профилей</p><a class="button secondary" href="/proxies">Открыть прокси</a></section>
+  <section class="card settings-card"><div class="settings-card-head"><div><span class="badge">Хранение</span><h2>Пути хранения</h2><p>Каталоги, которые передаются торрент-клиентам.</p></div><span class="settings-icon">↗</span></div><p><strong>{{ connection_counts.paths }}</strong> путей</p><a class="button secondary" href="/paths">Открыть пути</a></section>
+</div>
+<section class="card"><h2>Сервисы и автоматизация</h2><p class="muted">FlareSolverr и другие служебные интеграции настраиваются отдельно.</p><a class="button secondary" href="/integrations">Открыть сервисы и автоматизацию →</a></section>
+{% endblock %}

@@ -5,17 +5,20 @@
 <aside class="sidebar" id="sidebar"><a class="brand desktop-brand" href="/"><span class="brand-icon">T</span>TorrWatch</a><p class="eyebrow">SELF-HOSTED MONITORING</p><nav aria-label="Основная навигация">
 <a href="/dashboard" {% if path in ['/','/dashboard'] %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-grid"/></svg>Обзор</a>
 <a href="/torrents" {% if path and path.startswith('/torrents') %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-torrent"/></svg>Мониторы</a>
-<a href="/settings/sessions" {% if path in ['/settings/sessions'] or path.startswith('/configure/sessions') %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-plug"/></svg>Трекеры</a>
-<a href="/clients" {% if path in ['/clients'] or path.startswith('/configure/clients') %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-server"/></svg>Торрент-клиенты</a>
+<details class="nav-group" {% if path in ['/connections','/settings/sessions','/clients','/proxies','/paths'] or path.startswith('/configure/') %}open{% endif %}>
+<summary><svg class="nav-icon"><use href="#i-plug"/></svg>Подключения</summary>
+<a href="/connections" {% if path == '/connections' %}aria-current="page"{% endif %}>Обзор подключений</a>
+<a href="/settings/sessions" {% if path in ['/settings/sessions'] or path.startswith('/configure/sessions') %}aria-current="page"{% endif %}>Трекеры и сессии</a>
+<a href="/clients" {% if path in ['/clients'] or path.startswith('/configure/clients') %}aria-current="page"{% endif %}>Торрент-клиенты</a>
+<a href="/proxies" {% if path in ['/proxies'] or path.startswith('/configure/proxies') %}aria-current="page"{% endif %}>Прокси-профили</a>
+<a href="/paths" {% if path in ['/paths'] or path.startswith('/configure/paths') %}aria-current="page"{% endif %}>Пути хранения</a>
+</details>
+<a href="/notifications" {% if path == '/notifications' or path.startswith('/configure/notifications') %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-bell"/></svg>Уведомления</a>
 <a href="/queues" {% if path == '/queues' %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-download"/></svg>Очереди</a>
 <a href="/events" {% if path == '/events' %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-activity"/></svg>События</a>
-<a href="/notifications" {% if path == '/notifications' %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-bell"/></svg>Уведомления</a>
-<a href="/integrations" {% if path == '/integrations' %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-plug"/></svg>Интеграции</a>
-<a href="/system" {% if path in ['/system','/settings'] %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-settings"/></svg>Настройки</a>
-<details class="nav-group" {% if path in ['/proxies','/paths','/logs','/help'] %}open{% endif %}>
-<summary><svg class="nav-icon"><use href="#i-grid"/></svg>Дополнительно</summary>
-<a href="/proxies" {% if path == '/proxies' %}aria-current="page"{% endif %}>Прокси-профили</a>
-<a href="/paths" {% if path == '/paths' %}aria-current="page"{% endif %}>Пути хранения</a>
+<a href="/system" {% if path in ['/system','/settings'] %}aria-current="page"{% endif %}><svg class="nav-icon"><use href="#i-settings"/></svg>Система</a>
+<details class="nav-group" {% if path in ['/logs','/help'] %}open{% endif %}>
+<summary><svg class="nav-icon"><use href="#i-grid"/></svg>Справка и диагностика</summary>
 <a href="/logs" {% if path == '/logs' %}aria-current="page"{% endif %}>Диагностический журнал</a>
 <a href="/help" {% if path == '/help' %}aria-current="page"{% endif %}>Справка</a>
 </details></nav><div class="sidebar-footer"><div class="tw-sidebar-health {{ 'tw-good' if global_health.worker_ok else 'tw-warning' }}"><span class="tw-health-indicator"></span><span>{{ 'Worker работает' if global_health.worker_ok else 'Worker не отвечает' }}</span></div><button type="button" class="secondary theme-toggle" data-theme-toggle><svg class="button-icon"><use href="#i-moon"/></svg>Тёмная тема</button><p>Вы вошли как {{ username }}.</p><form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="secondary" type="submit">Выйти</button></form></div></aside>

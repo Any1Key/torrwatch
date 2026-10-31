@@ -263,6 +263,10 @@ class ConfigurationService:
                 channel.name, channel.type = name, kind_n
                 channel.encrypted_config = self.secrets.encrypt(json.dumps(config))
                 channel.event_types_json = json.dumps(events)
+                channel.monitor_tags_json = json.dumps(
+                    [tag.strip() for tag in values.get("monitor_tags", "").split(",") if tag.strip()],
+                    ensure_ascii=False,
+                )
                 channel.enabled = values.get("enabled") == "on"
                 s.add(channel)
                 s.flush()

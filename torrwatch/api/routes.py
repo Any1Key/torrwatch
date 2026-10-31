@@ -171,9 +171,7 @@ def monitors_page(request: Request, user: User = Depends(require_admin)) -> HTML
 
 @router.get("/monitors/new", response_class=HTMLResponse, include_in_schema=False)
 def new_monitor_page(request: Request, user: User = Depends(require_admin)) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request, name="monitor_form.html", context=page_context(request, user, error=None)
-    )
+    return RedirectResponse("/torrents/new", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @router.post("/monitors", include_in_schema=False)
@@ -202,15 +200,9 @@ def create_monitor_page(
 def monitor_page(
     monitor_id: int, request: Request, user: User = Depends(require_admin)
 ) -> HTMLResponse:
-    service = admin_service(request)
-    monitor = service.monitor(monitor_id)
-    if monitor is None:
+    if admin_service(request).monitor(monitor_id) is None:
         raise HTTPException(status_code=404, detail="Monitor not found.")
-    return templates.TemplateResponse(
-        request=request,
-        name="monitor_detail.html",
-        context=page_context(request, user, monitor=monitor, timeline=service.timeline(monitor_id)),
-    )
+    return RedirectResponse(f"/torrents/{monitor_id}", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @router.post("/monitors/{monitor_id}/check", include_in_schema=False)

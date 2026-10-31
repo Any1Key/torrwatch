@@ -44,6 +44,38 @@ def _timestamp(value: datetime | None) -> str | None:
 
 
 class AdminService:
+    @staticmethod
+    def _display_error(message: str | None) -> str | None:
+        """Return a concise Russian UI message while keeping raw logs unchanged."""
+        if not message:
+            return message
+        normalized = message.strip().casefold()
+        exact = {
+            "connection failed": "Не удалось подключиться к сервису.",
+            "removal not confirmed": "Удаление не подтверждено торрент-клиентом.",
+            "worker lease expired; job recovered.": "Время выполнения истекло, задача возвращена в очередь.",
+            "monitor check scheduled.": "Проверка раздачи поставлена в очередь.",
+            "monitor check completed.": "Проверка раздачи завершена.",
+            "tracker release state is unchanged.": "На трекере изменений нет.",
+            "tracker metadata changed but torrent identity is unchanged.": "Данные раздачи изменились, но сам торрент остался прежним.",
+        }
+        if normalized in exact:
+            return exact[normalized]
+        fragments = (
+            ("timed out", "Истекло время ожидания ответа от сервиса."),
+            ("timeout", "Истекло время ожидания ответа от сервиса."),
+            ("connection refused", "Сервис отклонил подключение. Проверьте адрес и порт."),
+            ("connection reset", "Соединение было прервано удалённым сервисом."),
+            ("unauthorized", "Сервис отклонил авторизацию. Проверьте учётные данные."),
+            ("forbidden", "Сервис запретил доступ. Проверьте Cookie и права доступа."),
+            ("not found", "Запрошенный ресурс не найден."),
+            ("database is locked", "База данных временно занята. Повторная попытка будет выполнена автоматически."),
+        )
+        for fragment, translated in fragments:
+            if fragment in normalized:
+                return translated
+        return message
+
     """Read models and enqueue-only administrative commands.
 
     It deliberately does not perform tracker, client, or notification network I/O.
@@ -503,8 +535,11 @@ class AdminService:
                     "id": event.id,
                     "code": event.event_code,
                     "level": event.level,
-                    "message": event.message,
-                    "details": self._event_details(event),
+                    "message": self._display_error(event.message),
+                    "details": {
+                        **self._event_details(event),
+                        **({"technical_message": event.message} if self._display_error(event.message) != event.message else {}),
+                    },
                     "created_at": _timestamp(event.created_at),
                 }
                 for event in events
@@ -539,6 +574,17 @@ class AdminService:
         return details
 
     def events(self) -> list[dict[str, Any]]:
+        labels = {
+            "CHECK_SUCCESS": "Проверка завершена",
+            "CHECK_REMOTE_UNCHANGED": "Изменений нет",
+            "INITIAL_BASELINE_ESTABLISHED": "Базовая версия сохранена",
+            "TORRENT_CHANGE_DETECTED": "Найдено обновление раздачи",
+            "DELIVERY_QUEUED": "Доставка поставлена в очередь",
+            "AUTH_REQUIRED": "Требуется авторизация трекера",
+            "TRACKER_UNAVAILABLE": "Трекер недоступен",
+            "PLUGIN_PARSE_ERROR": "Ошибка разбора страницы трекера",
+            "MONITOR_DELETED": "Монитор удалён",
+        }
         with self.database.session() as session:
             return [
                 {
@@ -546,6 +592,7 @@ class AdminService:
                     "monitor_id": event.monitor_id,
                     "plugin_id": event.tracker_plugin_id,
                     "code": event.event_code,
+                    "label": labels.get(event.event_code, event.event_code),
                     "level": event.level,
                     "message": event.message,
                     "details": self._event_details(event),
@@ -591,6 +638,9 @@ class AdminService:
                     "status",
                     "attempts",
                     "next_attempt_at",
+                    "created_at",
+                    "started_at",
+                    "completed_at",
                     "last_error",
                 ),
             ),
@@ -613,7 +663,15 @@ class AdminService:
             ),
             "notifications": (
                 NotificationChannel,
-                ("id", "name", "type", "enabled", "event_types_json", "created_at"),
+                (
+                    "id",
+                    "name",
+                    "type",
+                    "enabled",
+                    "event_types_json",
+                    "monitor_tags_json",
+                    "created_at",
+                ),
             ),
             "deliveries": (
                 DeliveryJob,
@@ -624,6 +682,9 @@ class AdminService:
                     "status",
                     "attempts",
                     "next_attempt_at",
+                    "created_at",
+                    "started_at",
+                    "completed_at",
                     "last_error",
                 ),
             ),
@@ -636,6 +697,8 @@ class AdminService:
                     "status",
                     "attempts",
                     "next_attempt_at",
+                    "created_at",
+                    "completed_at",
                     "last_error",
                 ),
             ),
@@ -655,6 +718,8 @@ class AdminService:
                 {
                     field: _timestamp(value)
                     if isinstance(value := getattr(row, field), datetime)
+                    else self._display_error(value)
+                    if field == "last_error" and isinstance(value, str)
                     else str(value)
                     if hasattr(value, "value")
                     else value
