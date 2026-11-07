@@ -92,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         database.dispose()
 
-    app = FastAPI(title="TorrWatch", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="TorrWatch", version="1.1.0", lifespan=lifespan)
     app.state.database = database
     app.state.settings = active_settings
     app.state.ready = False

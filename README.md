@@ -72,7 +72,7 @@ ruslanchikt/torrwatch:latest
 Для предсказуемого обновления можно указать конкретную версию в `.env`:
 
 ```dotenv
-TORRWATCH_IMAGE=ruslanchikt/torrwatch:0.1.0
+TORRWATCH_IMAGE=ruslanchikt/torrwatch:1.1.0
 ```
 
 Измените в `.env` как минимум:
