@@ -153,6 +153,7 @@ class HttpTransport:
         started = monotonic()
         client: Any | None = None
         client_proxy_url: str | None = None
+        native_redirects = False
         try:
             while True:
                 attempts += 1
@@ -210,7 +211,18 @@ class HttpTransport:
                         raise TransportError("redirect", "Too many redirects.")
                     current_url = urljoin(current_url, location)
                     await policy.validate(current_url)
+                    # Some trackers require their redirect target to be followed
+                    # by HTTPX's native redirect flow (it preserves connection and
+                    # TLS state in ways a second manual request does not). The
+                    # target is validated before enabling this for the next hop.
+                    client.follow_redirects = True
+                    client.max_redirects = 1
+                    native_redirects = True
                     continue
+                if native_redirects:
+                    for history_response in response.history:
+                        await policy.validate(str(history_response.url))
+                    native_redirects = False
                 decision = self.retry_policy.decide(
                     attempt=attempts,
                     method=request.method,
