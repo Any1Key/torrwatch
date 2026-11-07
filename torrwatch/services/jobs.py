@@ -204,7 +204,17 @@ class JobRepository:
                     monitor.last_success_at = now
                     monitor.next_check_at = now + timedelta(seconds=monitor.check_interval_seconds)
                     monitor.consecutive_failures = 0
-                    monitor.current_status = MonitorStatus.HEALTHY
+                    attention_event = session.scalar(
+                        select(Event.id)
+                        .where(
+                            Event.monitor_id == job.monitor_id,
+                            Event.event_code == "FORCED_VERIFICATION_INVALID_TORRENT",
+                            Event.created_at >= (job.started_at or now),
+                        )
+                        .limit(1)
+                    )
+                    if attention_event is None:
+                        monitor.current_status = MonitorStatus.HEALTHY
                 session.add(
                     Event(
                         monitor_id=job.monitor_id,

@@ -197,6 +197,9 @@ class MonitorCheckService:
                         "Forced verification returned an invalid torrent; "
                         "the last known-good torrent was retained."
                     ),
+                    level="WARNING",
+                    monitor_status=MonitorStatus.ERROR,
+                    notify=True,
                 )
                 state.set("last_torrent_verification_at", now_utc().isoformat())
                 return
@@ -490,7 +493,11 @@ class MonitorCheckService:
         *,
         event_code: str,
         message: str,
+        level: str = "INFO",
+        monitor_status: MonitorStatus | None = None,
+        notify: bool = False,
     ) -> None:
+        event_id: int | None = None
         with self._database.session() as session:
             if not self._owned(session, job_id, worker_id):
                 raise JobExecutionFailure("Job ownership was lost.", retryable=True)
@@ -502,16 +509,26 @@ class MonitorCheckService:
             monitor.external_tracker_id = external_id
             if remote.title.strip():
                 monitor.name = remote.title.strip()[:255]
-            session.add(
-                Event(
-                    monitor_id=monitor_id,
-                    tracker_plugin_id=plugin_id,
-                    level="INFO",
-                    event_code=event_code,
-                    message=message,
-                    details_json="{}",
-                    created_at=now_utc(),
-                )
+            if monitor_status is not None:
+                monitor.current_status = monitor_status
+            event = Event(
+                monitor_id=monitor_id,
+                tracker_plugin_id=plugin_id,
+                level=level,
+                event_code=event_code,
+                message=message,
+                details_json="{}",
+                created_at=now_utc(),
+            )
+            session.add(event)
+            if notify:
+                session.flush()
+                event_id = event.id
+        if event_id is not None:
+            from torrwatch.notifications.service import NotificationRepository
+
+            NotificationRepository(self._database).enqueue_for_monitor_event(
+                event_id, event_code, monitor_id, message
             )
 
     def _event_if_owned(
