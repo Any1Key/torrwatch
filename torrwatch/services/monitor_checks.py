@@ -183,6 +183,23 @@ class MonitorCheckService:
                 self._record_auth(job.id, worker_id, namespace, imported_at, "EXPIRED")
             raise self._plugin_failure(error) from error
         except TorrentValidationError as error:
+            if forced_due and snapshot.current_release_id is not None and not version_changed:
+                self._persist_remote_check(
+                    job.id,
+                    worker_id,
+                    snapshot.id,
+                    plugin.manifest.id,
+                    target.canonical_url,
+                    target.external_id,
+                    remote,
+                    event_code="FORCED_VERIFICATION_INVALID_TORRENT",
+                    message=(
+                        "Forced verification returned an invalid torrent; "
+                        "the last known-good torrent was retained."
+                    ),
+                )
+                state.set("last_torrent_verification_at", now_utc().isoformat())
+                return
             raise JobExecutionFailure(
                 "Downloaded tracker response is not a valid torrent.",
                 retryable=True,
