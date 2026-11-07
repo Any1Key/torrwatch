@@ -97,6 +97,10 @@ class FlareSolverrClient:
         }
         if post_data is not None:
             payload["postData"] = post_data
+        # The named RuTracker browser context owns its cookies. Reinjection
+        # during a challenge/redirect can fail with invalid cookie domain.
+        if session == "torrwatch-rutracker-account-1":
+            payload.pop("cookies", None)
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(self.endpoint, json=payload)
