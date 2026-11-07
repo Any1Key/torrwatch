@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from time import monotonic
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -149,11 +149,17 @@ class HttpTransport:
             else (httpx.Cookies(), None)
         )
         headers = {"User-Agent": stored_agent or self.user_agent, **dict(request.headers or {})}
-        current_url, attempts, redirects, proxy_index = request.url, 0, 0, 0
+        current_url, attempts, proxy_index = request.url, 0, 0
         started = monotonic()
         client: Any | None = None
         client_proxy_url: str | None = None
-        native_redirects = False
+
+        async def validate_redirect_request(outgoing: httpx.Request) -> None:
+            # HTTPX performs redirects inside the same client, which is required
+            # by trackers that bind the download token to the redirect flow. Keep
+            # SSRF protection by validating every outgoing redirect before it is
+            # sent, via the request hook.
+            await policy.validate(str(outgoing.url))
         try:
             while True:
                 attempts += 1
@@ -167,9 +173,10 @@ class HttpTransport:
                         await client.aclose()
                     client_kwargs: dict[str, object] = {
                         "timeout": self.timeout,
-                        "follow_redirects": False,
+                        "follow_redirects": True,
                         "verify": True,
                         "cookies": cookies,
+                        "event_hooks": {"request": [validate_redirect_request]},
                     }
                     if proxy.url:
                         client_kwargs["proxy"] = proxy.url
@@ -205,24 +212,8 @@ class HttpTransport:
                     raise TransportError(
                         kind, f"Request failed for {redact_url(current_url)}"
                     ) from error
-                if response.is_redirect and (location := response.headers.get("location")):
-                    redirects += 1
-                    if redirects > 10:
-                        raise TransportError("redirect", "Too many redirects.")
-                    current_url = urljoin(current_url, location)
-                    await policy.validate(current_url)
-                    # Some trackers require their redirect target to be followed
-                    # by HTTPX's native redirect flow (it preserves connection and
-                    # TLS state in ways a second manual request does not). The
-                    # target is validated before enabling this for the next hop.
-                    client.follow_redirects = True
-                    client.max_redirects = 1
-                    native_redirects = True
-                    continue
-                if native_redirects:
-                    for history_response in response.history:
-                        await policy.validate(str(history_response.url))
-                    native_redirects = False
+                for history_response in response.history:
+                    await policy.validate(str(history_response.url))
                 decision = self.retry_policy.decide(
                     attempt=attempts,
                     method=request.method,
