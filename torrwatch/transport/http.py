@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from time import monotonic
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -149,24 +150,32 @@ class HttpTransport:
         )
         headers = {"User-Agent": stored_agent or self.user_agent, **dict(request.headers or {})}
         current_url, attempts, redirects, proxy_index = request.url, 0, 0, 0
-        while True:
-            attempts += 1
-            # DNS can change between bounded HTTP attempts, so do not reuse the
-            # decision made for a prior attempt or redirect hop.
-            await policy.validate(current_url)
-            await self.rate_limiter.wait(urlsplit(current_url).hostname or "")
-            started = monotonic()
-            try:
-                client_kwargs: dict[str, object] = {
-                    "timeout": self.timeout,
-                    "follow_redirects": False,
-                    "verify": True,
-                    "cookies": cookies,
-                }
+        started = monotonic()
+        client: Any | None = None
+        client_proxy_url: str | None = None
+        try:
+            while True:
+                attempts += 1
+                # DNS can change between bounded HTTP attempts, so do not reuse the
+                # decision made for a prior attempt or redirect hop.
+                await policy.validate(current_url)
+                await self.rate_limiter.wait(urlsplit(current_url).hostname or "")
                 proxy = proxies[proxy_index]
-                if proxy.url:
-                    client_kwargs["proxy"] = proxy.url
-                async with self.client_factory(**client_kwargs) as client:  # type: ignore[operator]
+                if client is None or client_proxy_url != proxy.url:
+                    if client is not None:
+                        await client.aclose()
+                    client_kwargs: dict[str, object] = {
+                        "timeout": self.timeout,
+                        "follow_redirects": False,
+                        "verify": True,
+                        "cookies": cookies,
+                    }
+                    if proxy.url:
+                        client_kwargs["proxy"] = proxy.url
+                    client = self.client_factory(**client_kwargs)  # type: ignore[operator]
+                    await client.__aenter__()
+                    client_proxy_url = proxy.url
+                try:
                     response = await client.request(
                         request.method,
                         current_url,
@@ -175,46 +184,55 @@ class HttpTransport:
                         data=request.data,
                     )
                     cookies = client.cookies
-            except httpx.HTTPError as error:
-                if proxies[proxy_index].url and proxy_index + 1 < len(proxies):
-                    proxy_index += 1
+                except httpx.HTTPError as error:
+                    await client.aclose()
+                    client = None
+                    client_proxy_url = None
+                    if proxies[proxy_index].url and proxy_index + 1 < len(proxies):
+                        proxy_index += 1
+                        continue
+                    decision = self.retry_policy.decide(
+                        attempt=attempts,
+                        method=request.method,
+                        safe_to_retry=request.safe_to_retry,
+                        error=error,
+                    )
+                    if decision.retry:
+                        await asyncio.sleep(decision.delay_seconds)
+                        continue
+                    kind = "proxy" if proxies[proxy_index].url else "network_or_timeout"
+                    raise TransportError(
+                        kind, f"Request failed for {redact_url(current_url)}"
+                    ) from error
+                if response.is_redirect and (location := response.headers.get("location")):
+                    redirects += 1
+                    if redirects > 10:
+                        raise TransportError("redirect", "Too many redirects.")
+                    current_url = urljoin(current_url, location)
+                    await policy.validate(current_url)
                     continue
                 decision = self.retry_policy.decide(
                     attempt=attempts,
                     method=request.method,
                     safe_to_retry=request.safe_to_retry,
-                    error=error,
+                    response=response,
                 )
                 if decision.retry:
+                    await client.aclose()
+                    client = None
+                    client_proxy_url = None
                     await asyncio.sleep(decision.delay_seconds)
                     continue
-                kind = "proxy" if proxies[proxy_index].url else "network_or_timeout"
-                raise TransportError(
-                    kind, f"Request failed for {redact_url(current_url)}"
-                ) from error
-            if response.is_redirect and (location := response.headers.get("location")):
-                redirects += 1
-                if redirects > 10:
-                    raise TransportError("redirect", "Too many redirects.")
-                current_url = urljoin(current_url, location)
-                await policy.validate(current_url)
-                continue
-            decision = self.retry_policy.decide(
-                attempt=attempts,
-                method=request.method,
-                safe_to_retry=request.safe_to_retry,
-                response=response,
-            )
-            if decision.retry:
-                await asyncio.sleep(decision.delay_seconds)
-                continue
-            if self.sessions and request.session_namespace:
-                self.sessions.save(request.session_namespace, cookies, headers["User-Agent"])
-            return TransportResponse(
-                response.status_code,
-                redact(dict(response.headers)),
-                response.content,
-                redact_url(str(response.url)),
-                int((monotonic() - started) * 1000),
-                attempts,
-            )
+                if self.sessions and request.session_namespace:
+                    self.sessions.save(request.session_namespace, cookies, headers["User-Agent"])
+                return TransportResponse(
+                    response.status_code,
+                    redact(dict(response.headers)),
+                    response.content,
+                    redact_url(str(response.url)),
+                    int((monotonic() - started) * 1000),
+                    attempts,
+                )
+        finally:
+            if client is not None:
+                await client.aclose()
