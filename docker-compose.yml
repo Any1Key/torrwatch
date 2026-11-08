@@ -1,5 +1,6 @@
 services:
   flaresolverr:
+    container_name: torrwatch-flaresolverr
     # Reuse the FlareSolverr image already present on this NAS. Pinning the
     # digest also prevents an unattended update from changing browser behavior.
     image: ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
@@ -19,6 +20,7 @@ services:
       - no-new-privileges:true
 
   web:
+    container_name: torrwatch-web
     image: ${TORRWATCH_IMAGE:-ruslanchikt/torrwatch:latest}
     init: true
     command: ["torrwatch-web"]
@@ -44,6 +46,7 @@ services:
       start_period: 10s
 
   worker:
+    container_name: torrwatch-worker
     image: ${TORRWATCH_IMAGE:-ruslanchikt/torrwatch:latest}
     command: ["torrwatch-worker"]
     init: true
