@@ -408,6 +408,8 @@ class AdminService:
             )
             if job is None:
                 return False
+            if job.status == JobStatus.PENDING and job.next_attempt_at <= now:
+                return False
             job.status = JobStatus.PENDING
             job.attempts = 0
             job.next_attempt_at = now

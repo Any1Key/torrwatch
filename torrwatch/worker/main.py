@@ -19,7 +19,7 @@ from torrwatch.core.logging import configure_debug_logging
 from torrwatch.core.runtime import ensure_runtime_files
 from torrwatch.core.secrets import SecretBox
 from torrwatch.db.database import Database
-from torrwatch.db.models import DeliveryJob, Job, SystemSetting
+from torrwatch.db.models import DeliveryJob, Job, SystemSetting, TrackerSession
 from torrwatch.domain.enums import JobType
 from torrwatch.notifications.service import NotificationRepository, NotificationService
 from torrwatch.notifications.types import NotificationError, NotificationErrorCode
@@ -311,28 +311,60 @@ async def worker_cycle(
 async def refresh_tracker_sessions(
     database: Database, secrets: SecretBox, automation: dict
 ) -> None:
-    """Refresh tracker sessions independently of the job processing loop."""
+    """Refresh only missing or invalid tracker sessions.
+
+    Successful monitor checks keep a session marked ``WORKING``. Reopening a
+    browser and solving Cloudflare every refresh interval is both expensive
+    and less reliable than retaining that known-good session. Authentication
+    failures mark it ``EXPIRED`` and make the next refresh recreate it.
+    """
     solver = FlareSolverrClient(automation["url"])
-    for label, refresh, username, password in (
-        ("NNM-Club", refresh_nnmclub, automation["username"], automation["password"]),
+    for label, tracker_id, refresh, username, password in (
+        (
+            "NNM-Club",
+            "nnmclub",
+            refresh_nnmclub,
+            automation["username"],
+            automation["password"],
+        ),
         (
             "Kinozal",
+            "kinozal",
             refresh_kinozal,
             automation["kinozal_username"],
             automation["kinozal_password"],
         ),
         (
             "RuTracker",
+            "rutracker",
             refresh_rutracker,
             automation["rutracker_username"],
             automation["rutracker_password"],
         ),
     ):
         if username and password:
-            try:
-                await refresh(database, secrets, solver, username, password)
-            except FlareSolverrError as error:
-                logger.warning("Automatic %s session refresh failed: %s", label, error)
+            with database.session() as session:
+                stored = session.scalar(
+                    select(TrackerSession).where(
+                        TrackerSession.namespace == f"{tracker_id}:account:1"
+                    )
+                )
+                if stored is not None and stored.auth_status == "WORKING":
+                    logger.debug("Skipping %s refresh; stored session is working.", label)
+                    continue
+            for attempt in range(2):
+                try:
+                    await refresh(database, secrets, solver, username, password)
+                    break
+                except FlareSolverrError as error:
+                    logger.warning(
+                        "Automatic %s session refresh failed (attempt %d/2): %s",
+                        label,
+                        attempt + 1,
+                        error,
+                    )
+                    if attempt == 0:
+                        await asyncio.sleep(30)
     logger.info("Automatic tracker session refresh finished.")
 
 

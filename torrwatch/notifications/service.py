@@ -138,6 +138,15 @@ class NotificationRepository:
             )
             if monitor is None:
                 return 0
+            # A single exhausted HTTP attempt can still recover on the next
+            # scheduled check. Keep the event visible in the UI immediately,
+            # but notify only once the failure persists across checks.
+            if (
+                event_code
+                in {"TRACKER_NETWORK_ERROR", "TRACKER_UNAVAILABLE", "TRACKER_RATE_LIMITED"}
+                and monitor.consecutive_failures < 3
+            ):
+                return 0
             payload = notification_payload(
                 event_type=event_type,
                 message=message,
@@ -192,6 +201,7 @@ class NotificationRepository:
                 }
             )
         return self.enqueue_for_event(event_type, payload, delivery_id)
+
     def claim_next(self, worker_id: str, lease_seconds: int) -> NotificationJob | None:
         now = now_utc()
         with self.database.session() as session:

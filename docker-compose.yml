@@ -1,15 +1,18 @@
 services:
   flaresolverr:
     container_name: torrwatch-flaresolverr
-    # Reuse the FlareSolverr image already present on this NAS. Pinning the
-    # digest also prevents an unattended update from changing browser behavior.
-    image: ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
+    # Byparr exposes the FlareSolverr-compatible /v1 API and currently handles
+    # the tracker challenges that Chromium-based FlareSolverr cannot pass.
+    image: torrwatch-browser-solver:local
+    build:
+      context: ./docker/byparr
     environment:
-      # English locale is recommended for stable Cloudflare challenge parsing.
-      LANG: en_US.UTF-8
-      # Keep request bodies and browser details out of persistent logs.
-      LOG_LEVEL: error
-      TZ: Europe/Moscow
+      BROWSER_LOCALE: ru-RU
+      BROWSER_TIMEZONE: Europe/Moscow
+      LOG_LEVEL: warning
+    shm_size: "1gb"
+    tmpfs:
+      - /tmp:exec,mode=1777,size=1G
     restart: unless-stopped
     logging:
       driver: json-file
@@ -18,6 +21,10 @@ services:
         max-file: "3"
     security_opt:
       - no-new-privileges:true
+    # The image's built-in probe opens a real browser and creates unnecessary
+    # traffic every few minutes. TorrWatch checks the API when refreshing.
+    healthcheck:
+      disable: true
 
   web:
     container_name: torrwatch-web

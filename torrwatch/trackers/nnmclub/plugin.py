@@ -161,4 +161,6 @@ def _transport_error(error: TransportError) -> TrackerPluginError:
     code = {"rate_limit": PluginErrorCode.RATE_LIMITED, "proxy": PluginErrorCode.PROXY_ERROR}.get(
         error.kind, PluginErrorCode.TEMPORARY_NETWORK_ERROR
     )
-    return TrackerPluginError(code, "NNM-Club request could not be completed.")
+    cause = error.__cause__
+    reason = type(cause).__name__ if cause is not None else error.kind
+    return TrackerPluginError(code, f"Не удалось выполнить запрос к NNM-Club ({reason}).")

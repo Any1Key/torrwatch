@@ -160,6 +160,7 @@ class HttpTransport:
             # SSRF protection by validating every outgoing redirect before it is
             # sent, via the request hook.
             await policy.validate(str(outgoing.url))
+
         try:
             while True:
                 attempts += 1
@@ -210,7 +211,8 @@ class HttpTransport:
                         continue
                     kind = "proxy" if proxies[proxy_index].url else "network_or_timeout"
                     raise TransportError(
-                        kind, f"Request failed for {redact_url(current_url)}"
+                        kind,
+                        f"Request failed for {redact_url(current_url)} ({type(error).__name__})",
                     ) from error
                 for history_response in response.history:
                     await policy.validate(str(history_response.url))

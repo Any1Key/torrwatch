@@ -2,7 +2,7 @@ name: Publish TorrWatch image
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
     tags: ['v*.*.*']
   workflow_dispatch:
 
@@ -35,6 +35,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/beta' }}
             type=ref,event=tag
 
       - name: Build and push image
